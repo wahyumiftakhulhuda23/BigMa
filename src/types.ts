@@ -68,6 +68,22 @@ export interface ProjectDeadline {
   createdAt: string;
 }
 
+export interface AccountNote {
+  id: string;
+  platformAccountId: string; // ID PlatformAccount atau 'master' / 'general'
+  title: string;
+  content: string;
+  category: 'Kredensial & PIN' | 'Strategi & Niche' | 'Peringatan & Rule' | 'Jadwal Konten' | 'Log Update' | 'Umum';
+  priority: 'Rendah' | 'Sedang' | 'Tinggi' | 'Mendesak';
+  hasReminder: boolean;
+  reminderDate?: string; // YYYY-MM-DD
+  reminderTime?: string; // HH:mm
+  reminderStatus?: 'Pending' | 'Selesai';
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppSettings {
   usdToIdrRate: number;
   eurToIdrRate: number;
@@ -77,10 +93,11 @@ export interface AppSettings {
 export interface AppData {
   gmails: GmailAccount[];
   platformAccounts: PlatformAccount[];
+  notes: AccountNote[];
   realtimeFinances: RealtimeFinance[];
   incomes: IncomeRecord[];
   deadlines: ProjectDeadline[];
   settings: AppSettings;
 }
 
-export type ActiveTab = 'gmail' | 'platforms' | 'finance' | 'income' | 'calendar';
+export type ActiveTab = 'gmail' | 'platforms' | 'notes' | 'finance' | 'income' | 'calendar';

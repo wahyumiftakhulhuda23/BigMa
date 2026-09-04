@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AppData, GmailAccount, PlatformAccount, RealtimeFinance, IncomeRecord, ProjectDeadline } from '../types';
+import { AppData, GmailAccount, PlatformAccount, AccountNote, RealtimeFinance, IncomeRecord, ProjectDeadline } from '../types';
 import { formatCurrency, formatDateIndo } from './formatters';
 
 // Helper to download Excel
@@ -18,13 +18,15 @@ export function exportFullStudioWorkbook(
   platformAccountsArg?: PlatformAccount[],
   financesArg?: RealtimeFinance[],
   incomesArg?: IncomeRecord[],
-  deadlinesArg?: ProjectDeadline[]
+  deadlinesArg?: ProjectDeadline[],
+  notesArg?: AccountNote[]
 ): void {
   let gmails: GmailAccount[];
   let platformAccounts: PlatformAccount[];
   let finances: RealtimeFinance[];
   let incomes: IncomeRecord[];
   let deadlines: ProjectDeadline[];
+  let notes: AccountNote[];
 
   if ('gmails' in appDataOrGmails) {
     gmails = appDataOrGmails.gmails;
@@ -32,12 +34,14 @@ export function exportFullStudioWorkbook(
     finances = appDataOrGmails.realtimeFinances;
     incomes = appDataOrGmails.incomes;
     deadlines = appDataOrGmails.deadlines;
+    notes = appDataOrGmails.notes || [];
   } else {
     gmails = appDataOrGmails;
     platformAccounts = platformAccountsArg || [];
     finances = financesArg || [];
     incomes = incomesArg || [];
     deadlines = deadlinesArg || [];
+    notes = notesArg || [];
   }
 
   const workbook = XLSX.utils.book_new();
@@ -83,7 +87,26 @@ export function exportFullStudioWorkbook(
   const wsPlatforms = XLSX.utils.json_to_sheet(platformRows);
   XLSX.utils.book_append_sheet(workbook, wsPlatforms, 'Kelola Akun Platform');
 
-  // 3. Realtime Finance Sheet
+  // 3. Account Notes Sheet
+  const noteRows = notes.map((n, idx) => {
+    const plat = platformAccounts.find(p => p.id === n.platformAccountId);
+    return {
+      No: idx + 1,
+      'Judul Catatan': n.title,
+      Platform: plat ? `${plat.platform} (${plat.accountName})` : 'Umum / Global',
+      Kategori: n.category,
+      Isi: n.content,
+      'Pengingat Aktif': n.hasReminder ? 'Ya' : 'Tidak',
+      'Tanggal Pengingat': n.reminderDate || '-',
+      'Waktu Pengingat': n.reminderTime || '-',
+      'Status Pengingat': n.reminderStatus || '-',
+      'Terakhir Diedit': formatDateIndo(n.updatedAt),
+    };
+  });
+  const wsNotes = XLSX.utils.json_to_sheet(noteRows);
+  XLSX.utils.book_append_sheet(workbook, wsNotes, 'Catatan Akun');
+
+  // 4. Realtime Finance Sheet
   const financeRows = finances.map((f, idx) => {
     const plat = platformAccounts.find(p => p.id === f.platformAccountId);
     const gmail = plat ? gmails.find(g => g.id === plat.gmailId) : null;
@@ -104,7 +127,7 @@ export function exportFullStudioWorkbook(
   const wsFinance = XLSX.utils.json_to_sheet(financeRows);
   XLSX.utils.book_append_sheet(workbook, wsFinance, 'Keuangan Realtime');
 
-  // 4. Income Records Sheet
+  // 5. Income Records Sheet
   const incomeRows = incomes.map((inc, idx) => {
     const plat = platformAccounts.find(p => p.id === inc.platformAccountId);
     return {
@@ -124,7 +147,7 @@ export function exportFullStudioWorkbook(
   const wsIncomes = XLSX.utils.json_to_sheet(incomeRows);
   XLSX.utils.book_append_sheet(workbook, wsIncomes, 'Database Pemasukan');
 
-  // 5. Deadlines Sheet
+  // 6. Deadlines Sheet
   const deadlineRows = deadlines.map((dl, idx) => {
     const plat = dl.platformAccountId ? platformAccounts.find(p => p.id === dl.platformAccountId) : null;
     return {
@@ -144,6 +167,7 @@ export function exportFullStudioWorkbook(
   const todayStr = new Date().toISOString().split('T')[0];
   XLSX.writeFile(workbook, `BigMA_Studio_Laporan_Lengkap_${todayStr}.xlsx`);
 }
+
 
 // Export PDF Helper
 export function exportTableToPdf(options: {

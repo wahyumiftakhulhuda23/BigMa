@@ -11,6 +11,7 @@ export const initialStarterData: AppData = {
   },
   gmails: [],
   platformAccounts: [],
+  notes: [],
   realtimeFinances: [],
   incomes: [],
   deadlines: [],
@@ -54,6 +55,7 @@ export const demoSampleData: AppData = {
       createdAt: '2025-01-15',
     },
   ],
+  notes: [],
   realtimeFinances: [
     {
       id: 'rf-1',
@@ -85,6 +87,7 @@ export function loadAppData(): AppData {
       settings: parsed.settings || initialStarterData.settings,
       gmails: Array.isArray(parsed.gmails) ? parsed.gmails : [],
       platformAccounts: Array.isArray(parsed.platformAccounts) ? parsed.platformAccounts : [],
+      notes: Array.isArray(parsed.notes) ? parsed.notes : [],
       realtimeFinances: Array.isArray(parsed.realtimeFinances) ? parsed.realtimeFinances : [],
       incomes: Array.isArray(parsed.incomes) ? parsed.incomes : [],
       deadlines: Array.isArray(parsed.deadlines) ? parsed.deadlines : [],

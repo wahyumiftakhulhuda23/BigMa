@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ProjectDeadline, PlatformAccount } from '../../types';
+import { ProjectDeadline, PlatformAccount, AccountNote } from '../../types';
 import { exportToExcel, exportTableToPdf } from '../../utils/exportUtils';
 import { formatCurrency, formatDateIndo, getDeadlineUrgency } from '../../utils/formatters';
 import { ConfirmModal } from '../ConfirmModal';
@@ -21,30 +21,39 @@ import {
   Trash2,
   Check,
   Bell,
-  Sparkles
+  Sparkles,
+  StickyNote,
+  Tag
 } from 'lucide-react';
 
 interface CalendarViewProps {
   deadlines: ProjectDeadline[];
+  accountNotes?: AccountNote[];
   platformAccounts: PlatformAccount[];
   onAddDeadline: (preselectedDate?: string) => void;
   onEditDeadline: (deadline: ProjectDeadline) => void;
   onDeleteDeadline: (id: string) => void;
   onToggleStatus: (id: string, newStatus: 'Belum Selesai' | 'Dalam Proses' | 'Selesai') => void;
+  onEditNote?: (note: AccountNote) => void;
+  onToggleNoteReminderStatus?: (id: string) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   deadlines,
+  accountNotes = [],
   platformAccounts,
   onAddDeadline,
   onEditDeadline,
   onDeleteDeadline,
   onToggleStatus,
+  onEditNote,
+  onToggleNoteReminderStatus,
 }) => {
   const [viewMode, setViewMode] = useState<'calendar' | 'table'>('calendar');
   const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 8, 3)); // Current date Sept 3, 2026
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('All');
+  const [filterPlatform, setFilterPlatform] = useState<string>('All');
   const [deadlineToDelete, setDeadlineToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const currentYear = currentDate.getFullYear();
@@ -87,7 +96,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Current month days
   for (let day = 1; day <= totalDays; day++) {
-    const d = new Date(currentYear, currentMonth, day);
     const mStr = String(currentMonth + 1).padStart(2, '0');
     const dStr = String(day).padStart(2, '0');
     const dateStr = `${currentYear}-${mStr}-${dStr}`;
@@ -103,23 +111,47 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   // Active / Urgent Deadlines
-  const urgentItems = deadlines
+  const urgentDeadlines = deadlines
     .filter(d => d.status !== 'Selesai')
     .map(d => ({ ...d, urgency: getDeadlineUrgency(d.dueDate, d.status) }))
-    .filter(d => d.urgency.daysRemaining <= 3)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    .filter(d => d.urgency.daysRemaining <= 3);
+
+  // Active / Urgent Note Reminders
+  const urgentNotes = accountNotes
+    .filter(n => n.hasReminder && n.reminderDate && n.reminderStatus !== 'Selesai')
+    .map(n => ({ ...n, urgency: getDeadlineUrgency(n.reminderDate!, 'Belum Selesai') }))
+    .filter(n => n.urgency.daysRemaining <= 3);
 
   // Filtered Deadlines for Table View
   const filteredDeadlines = deadlines.filter(d => {
     if (filterPriority !== 'All' && d.priority !== filterPriority) return false;
 
     const plat = d.platformAccountId ? platformAccounts.find(p => p.id === d.platformAccountId) : null;
-    const term = searchTerm.toLowerCase();
+    if (filterPlatform !== 'All' && (!plat || plat.platform !== filterPlatform)) return false;
 
+    const term = searchTerm.toLowerCase();
     return (
       d.title.toLowerCase().includes(term) ||
       (d.targetQuantity && d.targetQuantity.toLowerCase().includes(term)) ||
       (d.notes && d.notes.toLowerCase().includes(term)) ||
+      (plat && plat.accountName.toLowerCase().includes(term)) ||
+      (plat && plat.platform.toLowerCase().includes(term))
+    );
+  });
+
+  // Filtered Notes with Reminders for Table View
+  const filteredNotes = accountNotes.filter(n => {
+    if (!n.hasReminder || !n.reminderDate) return false;
+    if (filterPriority !== 'All' && n.priority !== filterPriority) return false;
+
+    const plat = platformAccounts.find(p => p.id === n.platformAccountId);
+    if (filterPlatform !== 'All' && (!plat || plat.platform !== filterPlatform)) return false;
+
+    const term = searchTerm.toLowerCase();
+    return (
+      n.title.toLowerCase().includes(term) ||
+      n.content.toLowerCase().includes(term) ||
+      n.category.toLowerCase().includes(term) ||
       (plat && plat.accountName.toLowerCase().includes(term)) ||
       (plat && plat.platform.toLowerCase().includes(term))
     );
@@ -130,47 +162,80 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Export handlers
   const handleExportExcel = () => {
-    const rows = filteredDeadlines.map((d, idx) => {
+    const deadlineRows = filteredDeadlines.map((d, idx) => {
       const plat = d.platformAccountId ? platformAccounts.find(p => p.id === d.platformAccountId) : null;
       return {
+        Tipe: 'Tenggat Waktu Proyek',
         No: idx + 1,
-        'Judul Proyek / Tugas': d.title,
+        'Judul / Nama': d.title,
         Platform: plat?.platform || 'Umum',
         'Akun Terkait': plat?.accountName || '-',
-        'Tenggat Waktu': d.dueDate,
+        'Tanggal / Deadline': d.dueDate,
         Prioritas: d.priority,
         Status: d.status,
-        'Target Kuantitas': d.targetQuantity || '-',
-        Catatan: d.notes || '-',
+        Keterangan: d.targetQuantity || d.notes || '-',
       };
     });
-    exportToExcel(rows, `Jadwal_Tenggat_Waktu_BigMA_${new Date().toISOString().split('T')[0]}`, 'Tenggat Waktu');
+
+    const noteRows = filteredNotes.map((n, idx) => {
+      const plat = platformAccounts.find(p => p.id === n.platformAccountId);
+      return {
+        Tipe: 'Pengingat Catatan Akun',
+        No: idx + 1,
+        'Judul / Nama': n.title,
+        Platform: plat?.platform || 'Umum',
+        'Akun Terkait': plat?.accountName || '-',
+        'Tanggal / Deadline': n.reminderDate || '-',
+        Prioritas: n.priority,
+        Status: n.reminderStatus || 'Pending',
+        Keterangan: n.content,
+      };
+    });
+
+    exportToExcel([...deadlineRows, ...noteRows], `Jadwal_Kalender_BigMA_${new Date().toISOString().split('T')[0]}`, 'Jadwal & Pengingat');
   };
 
   const handleExportPdf = () => {
-    const headers = ['No', 'Judul Proyek', 'Platform', 'Tenggat Waktu', 'Prioritas', 'Status', 'Target'];
-    const rows = filteredDeadlines.map((d, idx) => {
-      const plat = d.platformAccountId ? platformAccounts.find(p => p.id === d.platformAccountId) : null;
-      return [
-        idx + 1,
-        d.title,
-        plat ? `${plat.platform} (${plat.accountName})` : 'Umum',
-        formatDateIndo(d.dueDate),
-        d.priority,
-        d.status,
-        d.targetQuantity || '-',
-      ];
-    });
+    const headers = ['No', 'Tipe', 'Judul / Peristiwa', 'Platform', 'Tanggal', 'Prioritas', 'Status'];
+    const rows = [
+      ...filteredDeadlines.map((d, idx) => {
+        const plat = d.platformAccountId ? platformAccounts.find(p => p.id === d.platformAccountId) : null;
+        return [
+          idx + 1,
+          'Tenggat Proyek',
+          d.title,
+          plat ? `${plat.platform} (${plat.accountName})` : 'Umum',
+          formatDateIndo(d.dueDate),
+          d.priority,
+          d.status,
+        ];
+      }),
+      ...filteredNotes.map((n, idx) => {
+        const plat = platformAccounts.find(p => p.id === n.platformAccountId);
+        return [
+          filteredDeadlines.length + idx + 1,
+          'Pengingat Catatan',
+          n.title,
+          plat ? `${plat.platform} (${plat.accountName})` : 'Umum',
+          formatDateIndo(n.reminderDate || ''),
+          n.priority,
+          n.reminderStatus || 'Pending',
+        ];
+      }),
+    ];
 
     exportTableToPdf({
-      title: 'Jadwal Tenggat Waktu Proyek - BigMA',
-      subtitle: `Target & Kalender Konten (Total: ${deadlines.length} Tugas, Selesai: ${deadlines.filter(x => x.status === 'Selesai').length})`,
-      filename: `Jadwal_Tenggat_Waktu_BigMA_${new Date().toISOString().split('T')[0]}`,
+      title: 'Jadwal Kalender & Pengingat Platform - BigMA',
+      subtitle: `Target, Deadline & Pengingat Akun (Total Item: ${rows.length})`,
+      filename: `Kalender_BigMA_${new Date().toISOString().split('T')[0]}`,
       headers,
       rows,
       orientation: 'landscape',
     });
   };
+
+  const totalCalendarEvents = deadlines.length + accountNotes.filter(n => n.hasReminder && n.reminderDate).length;
+  const totalUrgent = urgentDeadlines.length + urgentNotes.length;
 
   return (
     <div className="space-y-6" id="calendar-deadlines-root">
@@ -178,13 +243,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-2xl font-sans font-extrabold text-white tracking-tight">Kalender &amp; Tenggat Waktu</h2>
+            <h2 className="text-2xl font-sans font-extrabold text-white tracking-tight">Kalender &amp; Pengingat Platform</h2>
             <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30">
-              Schedule &amp; Tasks
+              Schedule &amp; Reminders
             </span>
           </div>
           <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-            Atur jadwal upload video YouTube, batch submission aset microstock, target kuantitas konten, dan pengingat deadline mendesak.
+            Sinkronisasi lengkap jadwal deadline konten, target batch submission aset microstock, serta pengingat catatan akun per platform pada tanggal bersangkutan.
           </p>
         </div>
 
@@ -215,7 +280,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
-          {deadlines.length > 0 && (
+          {totalCalendarEvents > 0 && (
             <>
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -263,10 +328,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           transition={{ duration: 0.2 }}
           className="p-4 bg-neutral-900/80 border border-[#262626] rounded-xl shadow-xs hover:border-neutral-700 transition-colors"
         >
-          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Total Tugas Terjadwal</div>
-          <div className="text-2xl font-mono font-bold text-white mt-1">{deadlines.length}</div>
+          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Total Event &amp; Tugas</div>
+          <div className="text-2xl font-mono font-bold text-white mt-1">{totalCalendarEvents}</div>
           <div className="text-[11px] text-neutral-400 mt-1">
-            Target produksi &amp; batch upload
+            {deadlines.length} deadline &bull; {accountNotes.filter(n => n.hasReminder).length} pengingat
           </div>
         </motion.div>
 
@@ -276,12 +341,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           transition={{ duration: 0.25 }}
           className="p-4 bg-neutral-900/80 border border-[#262626] rounded-xl shadow-xs hover:border-neutral-700 transition-colors"
         >
-          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Dalam Pengerjaan</div>
-          <div className="text-2xl font-mono font-bold text-sky-400 mt-1">
-            {deadlines.filter(d => d.status === 'Dalam Proses').length}
+          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Pengingat Catatan Akun</div>
+          <div className="text-2xl font-mono font-bold text-amber-400 mt-1">
+            {accountNotes.filter(n => n.hasReminder && n.reminderStatus !== 'Selesai').length}
           </div>
-          <div className="text-[11px] text-sky-400 mt-1">
-            Sedang diproses studio
+          <div className="text-[11px] text-amber-400/90 mt-1 flex items-center gap-1">
+            <Bell className="w-3 h-3" /> Muncul per platform
           </div>
         </motion.div>
 
@@ -293,7 +358,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         >
           <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Mendesak / Lewat Batas</div>
           <div className="text-2xl font-mono font-bold text-rose-400 mt-1">
-            {urgentItems.length}
+            {totalUrgent}
           </div>
           <div className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> Memerlukan aksi segera
@@ -306,18 +371,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           transition={{ duration: 0.35 }}
           className="p-4 bg-neutral-900/80 border border-[#262626] rounded-xl shadow-xs hover:border-neutral-700 transition-colors"
         >
-          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Selesai (Done)</div>
+          <div className="text-[10px] uppercase tracking-wider font-sans font-bold text-neutral-400">Terselesaikan (Done)</div>
           <div className="text-2xl font-mono font-bold text-emerald-400 mt-1">
-            {deadlines.filter(d => d.status === 'Selesai').length}
+            {deadlines.filter(d => d.status === 'Selesai').length + accountNotes.filter(n => n.hasReminder && n.reminderStatus === 'Selesai').length}
           </div>
           <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Target terpenuhi
+            <CheckCircle2 className="w-3 h-3" /> Target &amp; pengingat tuntas
           </div>
         </motion.div>
       </div>
 
       {/* Urgent Warning Banner */}
-      {urgentItems.length > 0 && (
+      {totalUrgent > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -326,19 +391,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <Bell className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
           <div className="flex-1">
             <h4 className="text-xs font-sans font-bold text-rose-300">
-              Perhatian: Terdapat {urgentItems.length} target deadline mendesak atau terlewat!
+              Perhatian: Terdapat {totalUrgent} target deadline &amp; pengingat mendesak atau terlewat!
             </h4>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Segera selesaikan target proyek BigMA berikut:
+              Tindakan segera yang jatuh tempo:
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {urgentItems.map(item => {
+              {urgentDeadlines.map(item => {
                 const urgency = getDeadlineUrgency(item.dueDate, item.status);
+                const plat = item.platformAccountId ? platformAccounts.find(p => p.id === item.platformAccountId) : null;
                 return (
                   <div
                     key={item.id}
                     className="px-2.5 py-1 rounded bg-neutral-900 border border-[#333] text-xs font-medium text-neutral-200 flex items-center gap-2 shadow-xs"
                   >
+                    <span className="text-[10px] font-bold text-purple-400 font-mono">[{plat ? plat.platform : 'Umum'}]</span>
                     <span className="font-medium">{item.title}</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-semibold ${urgency.badgeColor}`}>
                       {urgency.label}
@@ -349,6 +416,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     >
                       Selesai
                     </button>
+                  </div>
+                );
+              })}
+
+              {urgentNotes.map(note => {
+                const plat = platformAccounts.find(p => p.id === note.platformAccountId);
+                return (
+                  <div
+                    key={note.id}
+                    className="px-2.5 py-1 rounded bg-neutral-900 border border-amber-500/40 text-xs font-medium text-amber-200 flex items-center gap-2 shadow-xs"
+                  >
+                    <Bell className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="text-[10px] font-bold text-amber-400 font-mono">[{plat ? plat.platform : 'Umum'}]</span>
+                    <span className="font-medium">{note.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {note.urgency.label}
+                    </span>
+                    {onToggleNoteReminderStatus && (
+                      <button
+                        onClick={() => onToggleNoteReminderStatus(note.id)}
+                        className="text-emerald-400 hover:text-emerald-300 text-[11px] font-medium underline cursor-pointer"
+                      >
+                        Selesai
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -405,12 +497,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="grid grid-cols-7 divide-x divide-y divide-[#262626] bg-[#262626]">
             {calendarCells.map((cell, idx) => {
               const dayDeadlines = deadlines.filter(d => d.dueDate === cell.dateStr);
+              const dayNotes = accountNotes.filter(n => n.hasReminder && n.reminderDate === cell.dateStr);
               const isToday = cell.dateStr === todayStr;
 
               return (
                 <div
                   key={idx}
-                  className={`min-h-[110px] p-2 bg-neutral-950/90 flex flex-col justify-between transition-colors group relative ${
+                  className={`min-h-[125px] p-2 bg-neutral-950/90 flex flex-col justify-between transition-colors group relative ${
                     !cell.isCurrentMonth ? 'bg-neutral-950/40 text-neutral-600' : ''
                   }`}
                   id={`cal-cell-${cell.dateStr}`}
@@ -438,8 +531,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </button>
                   </div>
 
-                  {/* Deadline badges in day cell */}
-                  <div className="space-y-1 my-1 overflow-y-auto max-h-[85px] scrollbar-none">
+                  {/* Badges in day cell */}
+                  <div className="space-y-1 my-1 overflow-y-auto max-h-[95px] scrollbar-none">
+                    {/* Project Deadlines */}
                     {dayDeadlines.map(item => {
                       const urgency = getDeadlineUrgency(item.dueDate, item.status);
                       const isComplete = item.status === 'Selesai';
@@ -458,12 +552,39 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
                               : 'bg-neutral-900 border-[#333] text-neutral-200'
                           }`}
-                          title={`${item.title} (${item.priority})`}
+                          title={`[Tenggat Proyek] ${item.title} (${item.priority})`}
                         >
                           <div className="truncate font-medium leading-tight">{item.title}</div>
                           {plat && (
-                            <div className="text-[9px] text-amber-400/80 truncate font-mono">{plat.platform}</div>
+                            <div className="text-[9px] text-purple-400/90 truncate font-mono">[{plat.platform}]</div>
                           )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Account Note Reminders per Platform on this date */}
+                    {dayNotes.map(note => {
+                      const plat = platformAccounts.find(p => p.id === note.platformAccountId);
+                      const isComplete = note.reminderStatus === 'Selesai';
+
+                      return (
+                        <div
+                          key={note.id}
+                          onClick={() => onEditNote && onEditNote(note)}
+                          className={`p-1.5 rounded text-[10px] font-medium border cursor-pointer transition shadow-xs hover:border-amber-400 ${
+                            isComplete
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400/70 line-through'
+                              : 'bg-amber-500/15 border-amber-500/35 text-amber-200 hover:bg-amber-500/25'
+                          }`}
+                          title={`[Pengingat Akun] ${note.title} (${note.category})`}
+                        >
+                          <div className="flex items-center gap-1">
+                            <Bell className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                            <span className="truncate font-semibold leading-tight">{note.title}</span>
+                          </div>
+                          <div className="text-[9px] text-amber-400/90 truncate font-mono font-bold mt-0.5">
+                            {plat ? `[${plat.platform}] ${plat.accountName}` : '[Umum]'}
+                          </div>
                         </div>
                       );
                     })}
@@ -483,19 +604,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="space-y-4">
           {/* Table Search and Filter */}
           <div className="bg-neutral-900/70 p-2.5 rounded-xl border border-[#262626] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-neutral-400 font-medium">Filter Prioritas:</span>
-              <select
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-neutral-950 border border-[#262626] rounded-lg focus:outline-hidden font-medium text-neutral-300"
-              >
-                <option value="All">Semua Prioritas</option>
-                <option value="Rendah">Rendah</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Tinggi">Tinggi</option>
-                <option value="Mendesak">Mendesak</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-neutral-400">
+                <span className="text-[11px] font-medium">Prioritas:</span>
+                <select
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  className="px-2 py-1 text-xs bg-neutral-950 border border-[#262626] rounded-lg focus:outline-hidden font-medium text-neutral-300"
+                >
+                  <option value="All">Semua Prioritas</option>
+                  <option value="Rendah">Rendah</option>
+                  <option value="Sedang">Sedang</option>
+                  <option value="Tinggi">Tinggi</option>
+                  <option value="Mendesak">Mendesak</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs text-neutral-400">
+                <span className="text-[11px] font-medium">Platform:</span>
+                <select
+                  value={filterPlatform}
+                  onChange={(e) => setFilterPlatform(e.target.value)}
+                  className="px-2 py-1 text-xs bg-neutral-950 border border-[#262626] rounded-lg focus:outline-hidden font-medium text-neutral-300"
+                >
+                  <option value="All">Semua Platform</option>
+                  {Array.from(new Set(platformAccounts.map(p => p.platform))).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="relative w-full sm:w-80">
@@ -504,7 +641,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Cari judul proyek, target kuantitas, platform..."
+                placeholder="Cari judul proyek, catatan, target kuantitas, platform..."
                 className="w-full pl-9 pr-4 py-1.5 text-xs bg-neutral-950 text-neutral-200 placeholder:text-neutral-600 border border-[#262626] rounded-lg focus:outline-hidden focus:border-amber-500/60 transition-colors"
                 id="search-calendar-input"
               />
@@ -518,28 +655,34 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <thead>
                   <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
                     <th className="py-3 px-3.5 w-12 text-center">No</th>
-                    <th className="py-3 px-3.5 min-w-[220px]">Judul Tugas / Proyek</th>
-                    <th className="py-3 px-3.5 min-w-[170px]">Platform &amp; Akun</th>
-                    <th className="py-3 px-3.5 min-w-[150px]">Tenggat Waktu</th>
+                    <th className="py-3 px-3.5 w-32">Kategori Event</th>
+                    <th className="py-3 px-3.5 min-w-[200px]">Judul Proyek / Pengingat</th>
+                    <th className="py-3 px-3.5 min-w-[160px]">Platform &amp; Akun</th>
+                    <th className="py-3 px-3.5 min-w-[140px]">Tenggat / Tanggal</th>
                     <th className="py-3 px-3.5 min-w-[110px]">Prioritas</th>
-                    <th className="py-3 px-3.5 min-w-[150px]">Status</th>
-                    <th className="py-3 px-3.5 min-w-[130px]">Target Kuantitas</th>
+                    <th className="py-3 px-3.5 min-w-[140px]">Status</th>
+                    <th className="py-3 px-3.5 min-w-[140px]">Keterangan / Target</th>
                     <th className="py-3 px-3.5 w-24 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#262626]/70">
+                  {/* 1. Project Deadlines */}
                   {filteredDeadlines.map((dl, index) => {
                     const plat = dl.platformAccountId ? platformAccounts.find(p => p.id === dl.platformAccountId) : null;
                     const urgency = getDeadlineUrgency(dl.dueDate, dl.status);
 
                     return (
-                      <tr key={dl.id} className="hover:bg-neutral-900/60 transition-colors" id={`row-deadline-${dl.id}`}>
-                        {/* No */}
+                      <tr key={`dl-${dl.id}`} className="hover:bg-neutral-900/60 transition-colors" id={`row-deadline-${dl.id}`}>
                         <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
                           {index + 1}
                         </td>
 
-                        {/* Title */}
+                        <td className="py-3 px-3.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                            Tenggat Proyek
+                          </span>
+                        </td>
+
                         <td className="py-3 px-3.5">
                           <div className={`font-semibold text-neutral-100 text-sm ${dl.status === 'Selesai' ? 'line-through text-neutral-500' : ''}`}>
                             {dl.title}
@@ -549,7 +692,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           )}
                         </td>
 
-                        {/* Platform & Account */}
                         <td className="py-3 px-3.5">
                           {plat ? (
                             <div>
@@ -561,7 +703,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           )}
                         </td>
 
-                        {/* Tenggat Waktu & Urgensi */}
                         <td className="py-3 px-3.5 space-y-1">
                           <div className="font-mono text-neutral-300 font-medium">{formatDateIndo(dl.dueDate)}</div>
                           <span className={`inline-block px-2 py-0.5 rounded text-[10px] border font-mono ${urgency.badgeColor}`}>
@@ -569,7 +710,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </span>
                         </td>
 
-                        {/* Prioritas */}
                         <td className="py-3 px-3.5">
                           <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wider border ${
                             dl.priority === 'Mendesak'
@@ -584,7 +724,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </span>
                         </td>
 
-                        {/* Status dropdown */}
                         <td className="py-3 px-3.5">
                           <select
                             value={dl.status}
@@ -603,12 +742,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </select>
                         </td>
 
-                        {/* Target Kuantitas */}
                         <td className="py-3 px-3.5 font-mono text-neutral-300 text-xs">
                           {dl.targetQuantity || '-'}
                         </td>
 
-                        {/* Aksi */}
                         <td className="py-3 px-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
@@ -616,7 +753,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               onClick={() => onEditDeadline(dl)}
                               className="p-1.5 text-sky-400 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
                               title="Edit Tenggat Waktu"
-                              id={`edit-deadline-${dl.id}`}
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
@@ -625,7 +761,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               onClick={() => setDeadlineToDelete({ id: dl.id, name: `${dl.title} (${formatDateIndo(dl.dueDate)})` })}
                               className="p-1.5 text-rose-400 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
                               title="Hapus Tenggat Waktu"
-                              id={`del-deadline-${dl.id}`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -635,9 +770,105 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     );
                   })}
 
-                  {filteredDeadlines.length === 0 && (
+                  {/* 2. Account Notes Reminders */}
+                  {filteredNotes.map((note, index) => {
+                    const plat = platformAccounts.find(p => p.id === note.platformAccountId);
+                    const urgency = getDeadlineUrgency(note.reminderDate!, note.reminderStatus === 'Selesai' ? 'Selesai' : 'Belum Selesai');
+
+                    return (
+                      <tr key={`note-${note.id}`} className="hover:bg-neutral-900/60 transition-colors bg-amber-500/[0.02]">
+                        <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
+                          {filteredDeadlines.length + index + 1}
+                        </td>
+
+                        <td className="py-3 px-3.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit">
+                            <Bell className="w-2.5 h-2.5" /> Pengingat Akun
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3.5">
+                          <div className={`font-semibold text-neutral-100 text-sm ${note.reminderStatus === 'Selesai' ? 'line-through text-neutral-500' : ''}`}>
+                            {note.title}
+                          </div>
+                          <div className="text-[10px] text-amber-400/80 mt-0.5">Kategori: {note.category}</div>
+                        </td>
+
+                        <td className="py-3 px-3.5">
+                          {plat ? (
+                            <div>
+                              <div className="font-semibold text-amber-400 text-[11px]">{plat.platform}</div>
+                              <div className="text-[10px] text-neutral-400 font-mono">{plat.accountName}</div>
+                            </div>
+                          ) : (
+                            <span className="text-neutral-500 text-[11px] italic">Umum / Master</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3.5 space-y-1">
+                          <div className="font-mono text-neutral-300 font-medium">{formatDateIndo(note.reminderDate!)}</div>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] border font-mono ${urgency.badgeColor}`}>
+                            {urgency.label}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3.5">
+                          <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wider border ${
+                            note.priority === 'Mendesak'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              : note.priority === 'Tinggi'
+                              ? 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+                              : note.priority === 'Sedang'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : 'bg-neutral-800 text-neutral-300 border-neutral-700'
+                          }`}>
+                            {note.priority}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3.5">
+                          {onToggleNoteReminderStatus ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggleNoteReminderStatus(note.id)}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${
+                                note.reminderStatus === 'Selesai'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                              }`}
+                            >
+                              {note.reminderStatus === 'Selesai' ? 'Selesai' : 'Pending'}
+                            </button>
+                          ) : (
+                            <span className="text-xs font-semibold text-neutral-400">{note.reminderStatus || 'Pending'}</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3.5 text-neutral-300 text-xs">
+                          <p className="line-clamp-2">{note.content}</p>
+                        </td>
+
+                        <td className="py-3 px-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {onEditNote && (
+                              <button
+                                type="button"
+                                onClick={() => onEditNote(note)}
+                                className="p-1.5 text-amber-400 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+                                title="Lihat & Edit Catatan"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {filteredDeadlines.length === 0 && filteredNotes.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center text-neutral-400">
+                      <td colSpan={9} className="py-16 text-center text-neutral-400">
                         <motion.div 
                           initial={{ scale: 0.9, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
@@ -648,22 +879,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             <Clock className="w-7 h-7 text-purple-400" />
                           </div>
                           <p className="font-sans font-bold text-base text-neutral-200">
-                            {deadlines.length === 0 ? 'Belum Ada Jadwal Tenggat Waktu' : 'Tidak Ada Tugas yang Cocok'}
+                            Tidak Ada Jadwal atau Pengingat yang Cocok
                           </p>
                           <p className="text-xs text-neutral-400 mt-1 max-w-xs leading-relaxed">
-                            {deadlines.length === 0 
-                              ? 'Tambahkan jadwal deadline proyek, batch submission aset, atau target upload konten.'
-                              : 'Coba sesuaikan filter prioritas atau kata kunci pencarian.'}
+                            Coba sesuaikan filter prioritas, platform, atau kata kunci pencarian.
                           </p>
-                          <motion.button
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => onAddDeadline()}
-                            className="mt-4 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 text-neutral-950 rounded-lg text-xs font-sans font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4 stroke-[3]" />
-                            <span>Tambah Tenggat Waktu Pertama</span>
-                          </motion.button>
                         </motion.div>
                       </td>
                     </tr>

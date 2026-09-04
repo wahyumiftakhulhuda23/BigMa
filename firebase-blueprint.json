@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Display name of user" },
+        "createdAt": { "type": "string", "description": "Account creation ISO string" },
+        "updatedAt": { "type": "string", "description": "Last updated ISO string" }
+      }
+    },
+    "UserAppData": {
+      "collection": "users/{userId}/data",
+      "fields": {
+        "gmails": { "type": "array", "description": "Array of Gmail account objects" },
+        "platformAccounts": { "type": "array", "description": "Array of Platform account objects" },
+        "notes": { "type": "array", "description": "Array of account notes" },
+        "realtimeFinances": { "type": "array", "description": "Array of realtime finance items" },
+        "incomes": { "type": "array", "description": "Array of income records" },
+        "deadlines": { "type": "array", "description": "Array of project deadlines" },
+        "settings": { "type": "map", "description": "App settings like currency rates" },
+        "updatedAt": { "type": "string", "description": "Last sync timestamp" }
+      }
+    }
+  }
+}

@@ -15,8 +15,12 @@ import {
   CircleDollarSign, 
   Clock,
   FileSpreadsheet,
-  ShieldCheck,
-  Sparkles
+  StickyNote,
+  Sparkles,
+  LogOut,
+  Lock,
+  Cloud,
+  User as UserIcon
 } from 'lucide-react';
 import { formatCurrency, getDeadlineUrgency } from '../utils/formatters';
 
@@ -27,7 +31,11 @@ interface NavbarProps {
   onOpenNotifications: () => void;
   onOpenBackupModal: () => void;
   onExportAll?: () => void;
-  onQuickAdd: (type: 'gmail' | 'platform' | 'finance' | 'income' | 'deadline') => void;
+  onQuickAdd: (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline') => void;
+  userEmail?: string | null;
+  userName?: string | null;
+  onSignOut?: () => void;
+  onLockApp?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -38,27 +46,41 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenBackupModal,
   onExportAll,
   onQuickAdd,
+  userEmail,
+  userName,
+  onSignOut,
+  onLockApp,
 }) => {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Compute urgent notification count
-  const urgentCount = appData.deadlines.filter(d => {
+  // Compute urgent notification count (deadlines + urgent note reminders)
+  const urgentDeadlineCount = appData.deadlines.filter(d => {
     if (d.status === 'Selesai') return false;
     const urgency = getDeadlineUrgency(d.dueDate, d.status);
     return urgency.isOverdue || urgency.daysRemaining <= 3;
   }).length;
 
+  const urgentNoteCount = (appData.notes || []).filter(n => {
+    if (!n.hasReminder || !n.reminderDate || n.reminderStatus === 'Selesai') return false;
+    const urgency = getDeadlineUrgency(n.reminderDate, 'Belum Selesai');
+    return urgency.isOverdue || urgency.daysRemaining <= 3;
+  }).length;
+
+  const totalUrgent = urgentDeadlineCount + urgentNoteCount;
+
   const navTabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }>; count?: number; countColor?: string }[] = [
     { id: 'gmail', label: '1. Database Gmail', icon: KeyRound, count: appData.gmails.length },
     { id: 'platforms', label: '2. Kelola Akun Platform', icon: Layers, count: appData.platformAccounts.length },
-    { id: 'finance', label: '3. Keuangan Realtime', icon: Wallet },
-    { id: 'income', label: '4. Database Pemasukan', icon: TrendingUp, count: appData.incomes.length },
+    { id: 'notes', label: '3. Catatan Akun', icon: StickyNote, count: (appData.notes || []).length },
+    { id: 'finance', label: '4. Keuangan Realtime', icon: Wallet },
+    { id: 'income', label: '5. Database Pemasukan', icon: TrendingUp, count: appData.incomes.length },
     { 
       id: 'calendar', 
-      label: '5. Kalender & Deadline', 
+      label: '6. Kalender & Deadline', 
       icon: Calendar, 
-      count: urgentCount > 0 ? urgentCount : undefined,
-      countColor: urgentCount > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : undefined 
+      count: totalUrgent > 0 ? totalUrgent : undefined,
+      countColor: totalUrgent > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : undefined 
     },
   ];
 
@@ -198,6 +220,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         onClick={() => {
                           setQuickAddOpen(false);
+                          onQuickAdd('note');
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-800/80 flex items-center gap-2.5 text-neutral-200 transition-colors cursor-pointer"
+                        id="quick-add-note-opt"
+                      >
+                        <div className="p-1 rounded bg-amber-500/10 text-amber-400">
+                          <StickyNote className="w-3.5 h-3.5" />
+                        </div>
+                        <span>Catatan Akun / Pengingat</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setQuickAddOpen(false);
                           onQuickAdd('income');
                         }}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-800/80 flex items-center gap-2.5 text-neutral-200 transition-colors cursor-pointer"
@@ -216,7 +251,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-800/80 flex items-center gap-2.5 text-neutral-200 transition-colors cursor-pointer"
                         id="quick-add-deadline-opt"
                       >
-                        <div className="p-1 rounded bg-amber-500/10 text-amber-400">
+                        <div className="p-1 rounded bg-purple-500/10 text-purple-400">
                           <Clock className="w-3.5 h-3.5" />
                         </div>
                         <span>Jadwal Tenggat Baru</span>
@@ -237,14 +272,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Notifikasi & Pengingat Tenggat"
             >
               <Bell className="w-4 h-4" />
-              {urgentCount > 0 && (
+              {totalUrgent > 0 && (
                 <motion.span 
                   initial={{ scale: 0 }}
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-amber-500 text-neutral-950 text-[9px] font-sans font-black rounded-full flex items-center justify-center shadow-sm shadow-amber-500/50"
                 >
-                  {urgentCount}
+                  {totalUrgent}
                 </motion.span>
               )}
             </motion.button>
@@ -261,21 +296,92 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Settings2 className="w-4 h-4" />
             </motion.button>
 
-            {/* Administrator Profile Pill */}
-            <div className="hidden sm:flex items-center space-x-2 pl-2 border-l border-[#262626]">
-              <div className="text-right">
-                <p className="text-xs font-sans font-bold text-neutral-200 leading-tight">Admin</p>
-                <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-mono">BigMA</p>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-amber-500/40 flex items-center justify-center text-xs font-mono font-bold text-amber-400">
-                BM
-              </div>
+            {/* Administrator Profile Pill & User Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center space-x-2 pl-2 border-l border-[#262626] hover:opacity-90 transition-opacity cursor-pointer"
+                id="navbar-user-profile-btn"
+              >
+                <div className="hidden md:block text-right">
+                  <p className="text-xs font-sans font-bold text-neutral-200 leading-tight truncate max-w-[110px]">
+                    {userName || (userEmail ? userEmail.split('@')[0] : 'Admin')}
+                  </p>
+                  <p className="text-[9px] text-amber-400/90 font-mono flex items-center justify-end gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Cloud Vault
+                  </p>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-amber-500/40 flex items-center justify-center text-xs font-mono font-bold text-amber-400 shadow-inner">
+                  {userName ? userName.charAt(0).toUpperCase() : (userEmail ? userEmail.charAt(0).toUpperCase() : 'BM')}
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {userMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setUserMenuOpen(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-64 bg-[#141414] text-[#E5E5E5] rounded-xl shadow-2xl border border-[#262626] p-2 z-30 space-y-1"
+                    >
+                      <div className="p-2.5 bg-neutral-950 rounded-lg border border-[#262626] mb-1">
+                        <p className="text-xs font-bold text-white truncate">
+                          {userName || 'Admin BigMA'}
+                        </p>
+                        <p className="text-[11px] text-neutral-400 font-mono truncate">
+                          {userEmail || 'admin@bigma.studio'}
+                        </p>
+                        <div className="mt-2 pt-2 border-t border-[#262626] flex items-center justify-between text-[10px] text-neutral-400">
+                          <span className="flex items-center gap-1 text-emerald-400">
+                            <Cloud className="w-3 h-3" />
+                            <span>Multi-Device Sync</span>
+                          </span>
+                          <span className="text-neutral-500">Firebase Vault</span>
+                        </div>
+                      </div>
+
+                      {onLockApp && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            onLockApp();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-amber-300 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Kunci Sesi (Kuis Benang)</span>
+                        </button>
+                      )}
+
+                      {onSignOut && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            onSignOut();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 flex items-center gap-2.5 transition-colors cursor-pointer border-t border-[#262626]/50 mt-1"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Keluar Akun (Logout)</span>
+                        </button>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom Nav: 5 Main Menus with animated active tab indicator */}
+      {/* Bottom Nav: 6 Main Menus with animated active tab indicator */}
       <div className="bg-neutral-950/90 border-t border-[#262626] px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none py-2">
           {navTabs.map((tab) => {

@@ -1,16 +1,22 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AppData } from '../types';
+import { AppData, AppSettings } from '../types';
 import { downloadJsonBackup, resetToDefaultData } from '../utils/storage';
 import { exportFullStudioWorkbook } from '../utils/exportUtils';
 import { ConfirmModal } from './ConfirmModal';
-import { X, Download, Upload, RefreshCw, FileSpreadsheet, DollarSign, Check, AlertCircle } from 'lucide-react';
+import { X, Download, Upload, RefreshCw, FileSpreadsheet, DollarSign, Check, AlertCircle, Cloud, Globe, CloudCheck } from 'lucide-react';
 
 interface BackupModalProps {
   isOpen: boolean;
   onClose: () => void;
   appData: AppData;
-  onUpdateData: (newData: AppData) => void;
+  onUpdateData?: (newData: AppData) => void;
+  onRestoreData?: (newData: AppData) => void;
+  onSaveSettings?: (newSettings: AppSettings) => void;
+  userEmail?: string | null;
+  onSyncCloud?: () => Promise<boolean>;
+  isSyncing?: boolean;
+  lastSyncTime?: Date | null;
 }
 
 export const BackupModal: React.FC<BackupModalProps> = ({
@@ -18,12 +24,26 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   onClose,
   appData,
   onUpdateData,
+  onRestoreData,
+  onSaveSettings,
+  userEmail,
+  onSyncCloud,
+  isSyncing = false,
+  lastSyncTime,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [rateUsd, setRateUsd] = useState(appData.settings.usdToIdrRate.toString());
-  const [rateEur, setRateEur] = useState(appData.settings.eurToIdrRate.toString());
+  const [rateUsd, setRateUsd] = useState(appData.settings.usdToIdrRate?.toString() || '16250');
+  const [rateEur, setRateEur] = useState(appData.settings.eurToIdrRate?.toString() || '17400');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  // Sync inputs whenever modal is opened or settings change
+  useEffect(() => {
+    if (isOpen) {
+      setRateUsd(appData.settings.usdToIdrRate?.toString() || '16250');
+      setRateEur(appData.settings.eurToIdrRate?.toString() || '17400');
+    }
+  }, [isOpen, appData.settings.usdToIdrRate, appData.settings.eurToIdrRate]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,16 +61,25 @@ export const BackupModal: React.FC<BackupModalProps> = ({
     e.preventDefault();
     const usd = parseFloat(rateUsd) || 16250;
     const eur = parseFloat(rateEur) || 17400;
-    const updated = {
-      ...appData,
-      settings: {
-        ...appData.settings,
-        usdToIdrRate: usd,
-        eurToIdrRate: eur,
-      },
+    
+    const newSettings: AppSettings = {
+      ...appData.settings,
+      usdToIdrRate: usd,
+      eurToIdrRate: eur,
     };
-    onUpdateData(updated);
-    setStatusMessage({ type: 'success', text: 'Pengaturan kurs valuta berhasil diperbarui!' });
+
+    if (onSaveSettings) {
+      onSaveSettings(newSettings);
+    }
+    if (onUpdateData) {
+      const updated: AppData = {
+        ...appData,
+        settings: newSettings,
+      };
+      onUpdateData(updated);
+    }
+
+    setStatusMessage({ type: 'success', text: 'Pengaturan kurs valuta USD & EUR berhasil disimpan!' });
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
@@ -63,16 +92,27 @@ export const BackupModal: React.FC<BackupModalProps> = ({
       try {
         const parsed = JSON.parse(event.target?.result as string);
         if (!parsed.gmails || !parsed.platformAccounts) {
-          throw new Error('Format file backup tidak valid');
+          throw new Error('Format berkas backup JSON tidak valid');
         }
-        onUpdateData(parsed);
+        
+        // Ensure notes array exists
+        if (!parsed.notes) {
+          parsed.notes = [];
+        }
+
+        if (onRestoreData) {
+          onRestoreData(parsed);
+        } else if (onUpdateData) {
+          onUpdateData(parsed);
+        }
+
         setStatusMessage({ type: 'success', text: 'Data BigMA berhasil dipulihkan dari file backup!' });
         setTimeout(() => {
           setStatusMessage(null);
           onClose();
         }, 1500);
       } catch (err: any) {
-        setStatusMessage({ type: 'error', text: `Gagal import: ${err.message || 'Format salah'}` });
+        setStatusMessage({ type: 'error', text: `Gagal import: ${err.message || 'Format JSON salah'}` });
       }
     };
     reader.readAsText(file);
@@ -81,8 +121,12 @@ export const BackupModal: React.FC<BackupModalProps> = ({
 
   const handleConfirmResetData = () => {
     const def = resetToDefaultData();
-    onUpdateData(def);
-    setStatusMessage({ type: 'success', text: 'Data telah direset ke format kosong BigMA.' });
+    if (onRestoreData) {
+      onRestoreData(def);
+    } else if (onUpdateData) {
+      onUpdateData(def);
+    }
+    setStatusMessage({ type: 'success', text: 'Data telah direset ke format kosong awal BigMA.' });
     setTimeout(() => {
       setStatusMessage(null);
       onClose();
@@ -144,6 +188,48 @@ export const BackupModal: React.FC<BackupModalProps> = ({
                 </div>
               )}
 
+              {/* Cloud Firestore Multi-Device Sync */}
+              <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl space-y-2.5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-sans font-bold text-sm text-neutral-200 flex items-center gap-1.5">
+                      <Cloud className="w-4 h-4 text-sky-400" />
+                      Sinkronisasi Cloud Multi-Device
+                    </h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      Tersimpan aman di akun cloud Anda ({userEmail || 'Terhubung'}). Buka aplikasi ini di device, laptop atau smartphone mana pun untuk mengakses data yang sama secara otomatis.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 font-mono">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Sinkron Otomatis: Aktif</span>
+                  </div>
+
+                  {onSyncCloud && (
+                    <button
+                      type="button"
+                      disabled={isSyncing}
+                      onClick={async () => {
+                        const ok = await onSyncCloud();
+                        if (ok) {
+                          setStatusMessage({ type: 'success', text: 'Data berhasil disinkronkan ke Cloud Firestore!' });
+                          setTimeout(() => setStatusMessage(null), 3000);
+                        } else {
+                          setStatusMessage({ type: 'error', text: 'Gagal sinkronisasi ke cloud. Coba periksa koneksi internet.' });
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-sky-400 hover:text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                      <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Master Excel Export */}
               <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl">
                 <div className="flex items-start justify-between">
@@ -153,7 +239,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
                       Unduh Semua Data (Master Excel .XLSX)
                     </h4>
                     <p className="text-xs text-neutral-400 mt-1">
-                      Mencakup seluruh sheet: Database Gmail, Kelola Akun, Keuangan Realtime, Pemasukan, dan Kalender Deadline.
+                      Mencakup seluruh sheet: Database Gmail, Kelola Akun, Catatan, Keuangan Realtime, Pemasukan, dan Kalender Deadline.
                     </p>
                   </div>
                 </div>
