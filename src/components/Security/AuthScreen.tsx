@@ -58,6 +58,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         return 'Email atau kata sandi tidak cocok. Mohon periksa kembali.';
       case 'auth/too-many-requests':
         return 'Terlalu banyak percobaan gagal. Silakan tunggu beberapa saat lagi.';
+      case 'auth/operation-not-allowed':
+        return 'Metode Login belum diaktifkan di Firebase Console! Buka Firebase Console (console.firebase.google.com) -> Proyek api3-445216 -> Authentication -> Sign-in method -> Aktifkan provider "Email/Password" & "Google".';
+      case 'auth/unauthorized-domain':
+        return 'Domain Vercel Anda belum diizinkan oleh Firebase! Buka Firebase Console -> Authentication -> Settings -> Authorized domains -> Tambahkan domain Vercel Anda.';
       case 'auth/popup-closed-by-user':
         return 'Jendela login Google ditutup sebelum selesai.';
       case 'auth/network-request-failed':

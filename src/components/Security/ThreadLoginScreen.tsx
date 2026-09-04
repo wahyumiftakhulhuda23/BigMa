@@ -91,8 +91,8 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const leftPinRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const rightPinRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const leftPinRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const rightPinRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Line coordinates for SVG rendering
   const [lines, setLines] = useState<{
@@ -435,17 +435,18 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
                     {/* Right connector Pin on left card */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {isConnected && (
-                        <button
-                          type="button"
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => handleDisconnect(q.id, e)}
-                          className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-rose-400 transition-colors"
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDisconnect(q.id, e as any); }}
+                          className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-rose-400 transition-colors cursor-pointer"
                           title="Lepas benang ini"
                         >
                           <X className="w-3.5 h-3.5" />
-                        </button>
+                        </span>
                       )}
-                      <button
-                        type="button"
+                      <div
                         ref={(el) => { leftPinRefs.current[q.id] = el; }}
                         className={`w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center ${
                           isConnected
@@ -498,8 +499,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
                   >
                     {/* Left Pin on Right Date Card */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
+                      <div
                         ref={(el) => { rightPinRefs.current[opt.id] = el; }}
                         className={`w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center ${
                           connectedQ
