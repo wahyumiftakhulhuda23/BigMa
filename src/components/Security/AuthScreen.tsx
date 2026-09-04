@@ -6,72 +6,39 @@ import {
   KeyRound, 
   User as UserIcon, 
   ArrowRight, 
-  Sparkles, 
   ShieldCheck, 
   Globe2, 
   AlertCircle,
   CheckCircle2,
-  Layers,
-  Smartphone
+  Smartphone,
+  Info
 } from 'lucide-react';
 import { 
-  auth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  googleProvider,
-  updateProfile 
-} from '../../lib/firebase';
+  authenticateCredentials, 
+  registerNewCredential, 
+  MASTER_CREDENTIAL,
+  BigMAUser 
+} from '../../utils/authService';
 
 interface AuthScreenProps {
-  onAuthenticated: () => void;
+  onAuthenticated: (user: BigMAUser) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   
-  // Form fields
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  // Form fields (Prefilled with Master Credential requested by User for quick 1-click access)
+  const [displayName, setDisplayName] = useState(MASTER_CREDENTIAL.displayName);
+  const [email, setEmail] = useState(MASTER_CREDENTIAL.email);
+  const [password, setPassword] = useState(MASTER_CREDENTIAL.password);
+  const [confirmPassword, setConfirmPassword] = useState(MASTER_CREDENTIAL.password);
   
   // UI states
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Helper to format Firebase Auth errors into clear Indonesian
-  const getFriendlyErrorMessage = (error: any): string => {
-    const code = error?.code || '';
-    switch (code) {
-      case 'auth/email-already-in-use':
-        return 'Email ini sudah terdaftar. Silakan gunakan tab Masuk Akun.';
-      case 'auth/invalid-email':
-        return 'Format email tidak valid. Periksa kembali penulisan email.';
-      case 'auth/weak-password':
-        return 'Kata sandi terlalu pendek. Gunakan minimal 6 karakter.';
-      case 'auth/user-not-found':
-      case 'auth/wrong-password':
-      case 'auth/invalid-credential':
-        return 'Email atau kata sandi tidak cocok. Mohon periksa kembali.';
-      case 'auth/too-many-requests':
-        return 'Terlalu banyak percobaan gagal. Silakan tunggu beberapa saat lagi.';
-      case 'auth/operation-not-allowed':
-        return 'Metode Login belum diaktifkan di Firebase Console! Buka Firebase Console (console.firebase.google.com) -> Proyek api3-445216 -> Authentication -> Sign-in method -> Aktifkan provider "Email/Password" & "Google".';
-      case 'auth/unauthorized-domain':
-        return 'Domain Vercel Anda belum diizinkan oleh Firebase! Buka Firebase Console -> Authentication -> Settings -> Authorized domains -> Tambahkan domain Vercel Anda.';
-      case 'auth/popup-closed-by-user':
-        return 'Jendela login Google ditutup sebelum selesai.';
-      case 'auth/network-request-failed':
-        return 'Gagal terhubung ke jaringan internet. Periksa koneksi Anda.';
-      default:
-        return error?.message || 'Terjadi kesalahan autentikasi. Silakan coba lagi.';
-    }
-  };
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -96,42 +63,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
     try {
       if (mode === 'register') {
-        const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        if (displayName.trim() && userCred.user) {
-          await updateProfile(userCred.user, { displayName: displayName.trim() });
+        const res = await registerNewCredential(email, password, displayName);
+        if (!res.success || !res.user) {
+          setErrorMsg(res.error || 'Gagal mendaftar akun.');
+          return;
         }
-        setSuccessMsg('Pendaftaran akun berhasil! Mengarahkan ke Verifikasi Pengaman...');
+        setSuccessMsg('Akun berhasil didaftarkan! Mengarahkan ke Kuis Pengaman...');
+        setTimeout(() => {
+          onAuthenticated(res.user!);
+        }, 500);
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-        setSuccessMsg('Berhasil masuk! Mengarahkan ke Verifikasi Pengaman...');
+        const res = await authenticateCredentials(email, password);
+        if (!res.success || !res.user) {
+          setErrorMsg(res.error || 'Email atau kata sandi tidak cocok.');
+          return;
+        }
+        setSuccessMsg('Berhasil masuk! Mengarahkan ke Kuis Pengaman...');
+        setTimeout(() => {
+          onAuthenticated(res.user!);
+        }, 500);
       }
-
-      setTimeout(() => {
-        onAuthenticated();
-      }, 700);
     } catch (err: any) {
-      setErrorMsg(getFriendlyErrorMessage(err));
+      setErrorMsg('Terjadi kesalahan saat masuk. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleFillMasterCredential = () => {
+    setEmail(MASTER_CREDENTIAL.email);
+    setPassword(MASTER_CREDENTIAL.password);
     setErrorMsg(null);
-    setSuccessMsg(null);
-    setGoogleLoading(true);
-
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setSuccessMsg('Login dengan Google berhasil! Mengarahkan ke Verifikasi Pengaman...');
-      setTimeout(() => {
-        onAuthenticated();
-      }, 700);
-    } catch (err: any) {
-      setErrorMsg(getFriendlyErrorMessage(err));
-    } finally {
-      setGoogleLoading(false);
-    }
   };
 
   return (
@@ -144,7 +106,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-md bg-neutral-900/90 rounded-2xl border border-[#262626] shadow-2xl p-6 sm:p-8 relative backdrop-blur-md flex flex-col gap-6"
+        className="w-full max-w-md bg-neutral-900/90 rounded-2xl border border-[#262626] shadow-2xl p-6 sm:p-8 relative backdrop-blur-md flex flex-col gap-5"
         id="auth-container-card"
       >
         {/* Brand & Header */}
@@ -164,6 +126,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
           <p className="text-xs text-neutral-400 max-w-xs mx-auto">
             Akses dan sinkronisasi seluruh database akun, catatan, keuangan & deadline Anda dengan aman di semua device.
           </p>
+        </div>
+
+        {/* Master Account Info Badge */}
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-200">Kredensial Akses Cloud Vault Master</p>
+              <p className="text-[11px] font-mono text-amber-300/80 mt-0.5">
+                {MASTER_CREDENTIAL.email}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleFillMasterCredential}
+            className="text-[10px] font-bold bg-amber-500 hover:bg-amber-400 text-neutral-950 px-2 py-1 rounded transition-colors shrink-0 cursor-pointer"
+          >
+            Isi Otomatis
+          </button>
         </div>
 
         {/* Mode Switcher Tabs */}
@@ -231,7 +213,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         </AnimatePresence>
 
         {/* Auth Form */}
-        <form onSubmit={handleEmailSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1">
@@ -262,7 +244,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@email.com"
+                placeholder="wahyumiftakhulhuda23@gmail.com"
                 className="w-full bg-neutral-950 border border-[#262626] focus:border-amber-400 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors font-mono"
                 id="auth-email-input"
               />
@@ -281,7 +263,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
+                placeholder="Wahyuhuda_13"
                 className="w-full bg-neutral-950 border border-[#262626] focus:border-amber-400 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors font-mono"
                 id="auth-password-input"
               />
@@ -314,7 +296,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="submit"
-            disabled={loading || googleLoading}
+            disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all mt-4 disabled:opacity-50"
             id="auth-submit-btn"
           >
@@ -328,49 +310,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             )}
           </motion.button>
         </form>
-
-        {/* Divider */}
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-[#262626] w-full" />
-          <span className="bg-neutral-900 px-3 text-[11px] text-neutral-500 uppercase font-mono tracking-wider absolute">
-            atau
-          </span>
-        </div>
-
-        {/* Google Sign-In */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={loading || googleLoading}
-          className="w-full py-2.5 bg-neutral-950 hover:bg-neutral-800 border border-[#262626] hover:border-neutral-700 text-neutral-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-3 transition-colors cursor-pointer disabled:opacity-50"
-          id="google-signin-btn"
-        >
-          {googleLoading ? (
-            <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <>
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  fill="#EA4335"
-                  d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5.1 3.7-8.8z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.2-1.9.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16c1.8 3.7 5.6 6.3 10.1 6.3z"
-                />
-              </svg>
-              <span>Masuk Cepat dengan Google</span>
-            </>
-          )}
-        </button>
 
         {/* Security & Multi-Device Feature Badges */}
         <div className="pt-2 border-t border-[#262626] grid grid-cols-2 gap-2 text-[10px] text-neutral-400">

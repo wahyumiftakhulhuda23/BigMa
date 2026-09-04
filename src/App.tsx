@@ -8,7 +8,6 @@ import {
   RealtimeFinance, 
   IncomeRecord, 
   ProjectDeadline, 
-  AppSettings,
   ActiveTab 
 } from './types';
 import { loadAppData, saveAppData } from './utils/storage';
@@ -17,9 +16,14 @@ import {
   loadUserAppDataFromCloud, 
   subscribeUserAppDataFromCloud 
 } from './utils/cloudStorage';
+import { 
+  getActiveUserSession, 
+  setActiveUserSession, 
+  BigMAUser,
+  MASTER_CREDENTIAL 
+} from './utils/authService';
 import { exportFullStudioWorkbook } from './utils/exportUtils';
 import { getDeadlineUrgency } from './utils/formatters';
-import { auth, onAuthStateChanged, fbSignOut, User } from './lib/firebase';
 
 // Security & Authentication Screens
 import { AuthScreen } from './components/Security/AuthScreen';
@@ -48,11 +52,11 @@ import { IncomeModal } from './components/IncomeDatabase/IncomeModal';
 
 import { CalendarView } from './components/CalendarDeadlines/CalendarView';
 import { DeadlineModal } from './components/CalendarDeadlines/DeadlineModal';
-import { Lock, Cloud, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
+import { Lock, Cloud } from 'lucide-react';
 
 export default function App() {
-  // 1. Firebase Authentication State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // 1. User Authentication Session State
+  const [currentUser, setCurrentUser] = useState<BigMAUser | null>(() => getActiveUserSession());
   const [authLoading, setAuthLoading] = useState<boolean>(true);
 
   // 2. Thread Quiz Security Gate (Unlocks after successful yarn pairing for current session)
@@ -100,49 +104,42 @@ export default function App() {
   const [preselectedDeadlineDate, setPreselectedDeadlineDate] = useState<string | undefined>();
 
   // ----------------------------------------------------
-  // Listen to Firebase Auth state
+  // Load and Initial Sync with Firestore Cloud Document
   // ----------------------------------------------------
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        // Fetch cloud data for this user
+    const initCloudData = async () => {
+      if (currentUser?.uid) {
+        setIsSyncing(true);
         try {
-          setIsSyncing(true);
-          const cloudData = await loadUserAppDataFromCloud(user.uid);
+          const cloudData = await loadUserAppDataFromCloud(currentUser.uid);
           if (cloudData) {
             setAppData(cloudData);
             saveAppData(cloudData);
           } else {
-            // New user or no cloud data yet: sync initial/local data to user's Firestore cloud
+            // New user document: push local initial data to Firestore
             const currentLocal = loadAppData();
-            await saveUserAppDataToCloud(user.uid, currentLocal);
+            await saveUserAppDataToCloud(currentUser.uid, currentLocal);
           }
           setLastSyncTime(new Date());
         } catch (err) {
-          console.error('Error fetching initial cloud data:', err);
+          console.error('Error fetching cloud vault data:', err);
         } finally {
           setIsSyncing(false);
         }
-      } else {
-        // If user logged out, lock thread quiz and clear session
-        sessionStorage.removeItem('bigma_yarn_unlocked');
-        setIsThreadUnlocked(false);
       }
       setAuthLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    initCloudData();
+  }, [currentUser?.uid]);
 
   // ----------------------------------------------------
-  // Real-time Firestore Remote Sync Subscription
+  // Real-time Firestore Multi-Device Remote Subscription
   // ----------------------------------------------------
   useEffect(() => {
     if (!currentUser?.uid) return;
 
     const unsubscribe = subscribeUserAppDataFromCloud(currentUser.uid, (remoteData) => {
-      // Update local state when changes happen from another device
       setAppData(remoteData);
       saveAppData(remoteData);
       setLastSyncTime(new Date());
@@ -183,6 +180,10 @@ export default function App() {
   // ----------------------------------------------------
   // Auth & Security Handlers
   // ----------------------------------------------------
+  const handleUserAuthenticated = (user: BigMAUser) => {
+    setCurrentUser(user);
+  };
+
   const handleThreadUnlock = () => {
     sessionStorage.setItem('bigma_yarn_unlocked', 'true');
     setIsThreadUnlocked(true);
@@ -196,7 +197,8 @@ export default function App() {
   const handleSignOut = async () => {
     sessionStorage.removeItem('bigma_yarn_unlocked');
     setIsThreadUnlocked(false);
-    await fbSignOut(auth);
+    setActiveUserSession(null);
+    setCurrentUser(null);
   };
 
   // Urgent notifications count
@@ -413,7 +415,7 @@ export default function App() {
   // 2. Step 1: User Not Logged In -> Show Auth Screen
   // ----------------------------------------------------
   if (!currentUser) {
-    return <AuthScreen onAuthenticated={() => {}} />;
+    return <AuthScreen onAuthenticated={handleUserAuthenticated} />;
   }
 
   // ----------------------------------------------------
@@ -651,12 +653,12 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-neutral-300">BigMA Studio Account Management</span>
             <span>&bull;</span>
-            <span className="text-amber-400 font-mono">Vault v2.4 (Cloud Multi-Device)</span>
+            <span className="text-amber-400 font-mono">Vault v2.5 (Cloud Sync)</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <span className="flex items-center gap-1 text-emerald-400 font-mono">
               <Cloud className="w-3.5 h-3.5" />
-              <span>Firebase Cloud Sync</span>
+              <span>Firebase Cloud Sync Active</span>
             </span>
             <span>&bull;</span>
             <button
