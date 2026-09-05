@@ -275,9 +275,10 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
       >
         {/* Header Security Gate */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-neutral-950 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold tracking-wider uppercase mb-1 shadow-inner">
+          <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 rounded-full bg-neutral-950 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold tracking-wider uppercase mb-1 shadow-inner">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <Globe2 className="w-3.5 h-3.5" />
-            <span>Multi-Device Lifetime Cloud Sync</span>
+            <span>Multi-Device Lifetime Cloud Sync (Firestore Aktif)</span>
           </div>
 
           <div className="flex items-center justify-center gap-3">
