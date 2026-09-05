@@ -12,21 +12,14 @@ import {
 } from './types';
 import { loadAppData, saveAppData } from './utils/storage';
 import { 
-  saveUserAppDataToCloud, 
-  loadUserAppDataFromCloud, 
-  subscribeUserAppDataFromCloud 
+  saveMasterAppDataToCloud, 
+  loadMasterAppDataFromCloud, 
+  subscribeMasterAppDataFromCloud 
 } from './utils/cloudStorage';
-import { 
-  getActiveUserSession, 
-  setActiveUserSession, 
-  BigMAUser,
-  MASTER_CREDENTIAL 
-} from './utils/authService';
 import { exportFullStudioWorkbook } from './utils/exportUtils';
 import { getDeadlineUrgency } from './utils/formatters';
 
-// Security & Authentication Screens
-import { AuthScreen } from './components/Security/AuthScreen';
+// Security Gate Screen (PIN 2000 + Yarn Quiz)
 import { ThreadLoginScreen } from './components/Security/ThreadLoginScreen';
 
 // Navigation and Modals
@@ -55,16 +48,12 @@ import { DeadlineModal } from './components/CalendarDeadlines/DeadlineModal';
 import { Lock, Cloud } from 'lucide-react';
 
 export default function App() {
-  // 1. User Authentication Session State
-  const [currentUser, setCurrentUser] = useState<BigMAUser | null>(() => getActiveUserSession());
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
-
-  // 2. Thread Quiz Security Gate (Unlocks after successful yarn pairing for current session)
-  const [isThreadUnlocked, setIsThreadUnlocked] = useState<boolean>(() => {
-    return sessionStorage.getItem('bigma_yarn_unlocked') === 'true';
+  // 1. Security Gate Unlock State (Requires PIN 2000 + Yarn Quiz)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('bigma_cloud_vault_unlocked') === 'true';
   });
 
-  // 3. Core App Data State
+  // 2. Core App Data State
   const [appData, setAppData] = useState<AppData>(() => loadAppData());
   const [activeTab, setActiveTab] = useState<ActiveTab>('gmail');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -104,70 +93,68 @@ export default function App() {
   const [preselectedDeadlineDate, setPreselectedDeadlineDate] = useState<string | undefined>();
 
   // ----------------------------------------------------
-  // Load and Initial Sync with Firestore Cloud Document
+  // Load and Real-time Sync with Firestore Cloud Master Vault
   // ----------------------------------------------------
   useEffect(() => {
+    let isMounted = true;
+
     const initCloudData = async () => {
-      if (currentUser?.uid) {
-        setIsSyncing(true);
-        try {
-          const cloudData = await loadUserAppDataFromCloud(currentUser.uid);
-          if (cloudData) {
-            setAppData(cloudData);
-            saveAppData(cloudData);
-          } else {
-            // New user document: push local initial data to Firestore
-            const currentLocal = loadAppData();
-            await saveUserAppDataToCloud(currentUser.uid, currentLocal);
-          }
+      setIsSyncing(true);
+      try {
+        const cloudData = await loadMasterAppDataFromCloud();
+        if (cloudData && isMounted) {
+          setAppData(cloudData);
+          saveAppData(cloudData);
+        } else if (isMounted) {
+          // Push initial data to cloud if document doesn't exist yet
+          const currentLocal = loadAppData();
+          await saveMasterAppDataToCloud(currentLocal);
+        }
+        if (isMounted) {
           setLastSyncTime(new Date());
-        } catch (err) {
-          console.error('Error fetching cloud vault data:', err);
-        } finally {
+        }
+      } catch (err) {
+        console.error('Error fetching master cloud vault data:', err);
+      } finally {
+        if (isMounted) {
           setIsSyncing(false);
         }
       }
-      setAuthLoading(false);
     };
 
     initCloudData();
-  }, [currentUser?.uid]);
 
-  // ----------------------------------------------------
-  // Real-time Firestore Multi-Device Remote Subscription
-  // ----------------------------------------------------
-  useEffect(() => {
-    if (!currentUser?.uid) return;
-
-    const unsubscribe = subscribeUserAppDataFromCloud(currentUser.uid, (remoteData) => {
+    // Subscribe to real-time changes across all connected devices (HP, Laptop, PC)
+    const unsubscribe = subscribeMasterAppDataFromCloud((remoteData) => {
+      if (!isMounted) return;
       setAppData(remoteData);
       saveAppData(remoteData);
       setLastSyncTime(new Date());
     });
 
-    return () => unsubscribe();
-  }, [currentUser?.uid]);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
 
-  // Helper to persist state both locally and to Firestore Cloud
+  // Helper to persist state both locally and to Cloud Firestore
   const updateAndSyncData = useCallback((updater: (prev: AppData) => AppData) => {
     setAppData(prev => {
       const nextData = updater(prev);
       saveAppData(nextData);
-      if (currentUser?.uid) {
-        saveUserAppDataToCloud(currentUser.uid, nextData).then(() => {
-          setLastSyncTime(new Date());
-        });
-      }
+      saveMasterAppDataToCloud(nextData).then(() => {
+        setLastSyncTime(new Date());
+      });
       return nextData;
     });
-  }, [currentUser?.uid]);
+  }, []);
 
   // Manual trigger for Cloud Sync
   const handleManualCloudSync = async (): Promise<boolean> => {
-    if (!currentUser?.uid) return false;
     setIsSyncing(true);
     try {
-      const success = await saveUserAppDataToCloud(currentUser.uid, appData);
+      const success = await saveMasterAppDataToCloud(appData);
       if (success) {
         setLastSyncTime(new Date());
       }
@@ -178,27 +165,16 @@ export default function App() {
   };
 
   // ----------------------------------------------------
-  // Auth & Security Handlers
+  // Security Gate Handlers
   // ----------------------------------------------------
-  const handleUserAuthenticated = (user: BigMAUser) => {
-    setCurrentUser(user);
-  };
-
-  const handleThreadUnlock = () => {
-    sessionStorage.setItem('bigma_yarn_unlocked', 'true');
-    setIsThreadUnlocked(true);
+  const handleUnlock = () => {
+    sessionStorage.setItem('bigma_cloud_vault_unlocked', 'true');
+    setIsUnlocked(true);
   };
 
   const handleLockSession = () => {
-    sessionStorage.removeItem('bigma_yarn_unlocked');
-    setIsThreadUnlocked(false);
-  };
-
-  const handleSignOut = async () => {
-    sessionStorage.removeItem('bigma_yarn_unlocked');
-    setIsThreadUnlocked(false);
-    setActiveUserSession(null);
-    setCurrentUser(null);
+    sessionStorage.removeItem('bigma_cloud_vault_unlocked');
+    setIsUnlocked(false);
   };
 
   // Urgent notifications count
@@ -397,43 +373,14 @@ export default function App() {
   };
 
   // ----------------------------------------------------
-  // 1. Initial Authentication Loading Splash
+  // 1. Security Gate: If locked -> Show PIN 2000 + Yarn Quiz Screen
   // ----------------------------------------------------
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center p-4 text-[#E5E5E5] font-sans">
-        <div className="w-12 h-12 border-3 border-amber-500/20 border-t-amber-400 rounded-full animate-spin mb-4" />
-        <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-          Big<span className="text-amber-400">MA</span> Cloud Vault
-        </h2>
-        <p className="text-xs text-neutral-500 mt-1 font-mono">Memuat otentikasi & status sinkronisasi...</p>
-      </div>
-    );
+  if (!isUnlocked) {
+    return <ThreadLoginScreen onUnlock={handleUnlock} />;
   }
 
   // ----------------------------------------------------
-  // 2. Step 1: User Not Logged In -> Show Auth Screen
-  // ----------------------------------------------------
-  if (!currentUser) {
-    return <AuthScreen onAuthenticated={handleUserAuthenticated} />;
-  }
-
-  // ----------------------------------------------------
-  // 3. Step 2: User Logged In but Thread Quiz Locked -> Show Thread Security Gate
-  // ----------------------------------------------------
-  if (!isThreadUnlocked) {
-    return (
-      <ThreadLoginScreen 
-        onUnlock={handleThreadUnlock} 
-        onSignOut={handleSignOut}
-        userEmail={currentUser.email}
-        userName={currentUser.displayName}
-      />
-    );
-  }
-
-  // ----------------------------------------------------
-  // 4. Step 3: Main BigMA Studio Application Dashboard
+  // 2. Main BigMA Studio Application Dashboard
   // ----------------------------------------------------
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col antialiased text-[#E5E5E5]" id="bigma-studio-root">
@@ -442,9 +389,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         appData={appData}
-        userEmail={currentUser.email}
-        userName={currentUser.displayName}
-        onSignOut={handleSignOut}
+        userName="BigMA Studio"
         onLockApp={handleLockSession}
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenBackupModal={() => setIsBackupOpen(true)}
@@ -653,12 +598,12 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-neutral-300">BigMA Studio Account Management</span>
             <span>&bull;</span>
-            <span className="text-amber-400 font-mono">Vault v2.5 (Cloud Sync)</span>
+            <span className="text-amber-400 font-mono">Vault v3.0 (Multi-Device Cloud)</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <span className="flex items-center gap-1 text-emerald-400 font-mono">
               <Cloud className="w-3.5 h-3.5" />
-              <span>Firebase Cloud Sync Active</span>
+              <span>Cloud Sync Lifetime Aktif</span>
             </span>
             <span>&bull;</span>
             <button
@@ -666,7 +611,7 @@ export default function App() {
               className="text-neutral-400 hover:text-amber-400 flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Lock className="w-3 h-3" />
-              <span>Kunci Sesi</span>
+              <span>Kunci Brankas</span>
             </button>
           </div>
         </div>
@@ -762,7 +707,7 @@ export default function App() {
         isOpen={isBackupOpen}
         onClose={() => setIsBackupOpen(false)}
         appData={appData}
-        userEmail={currentUser.email}
+        userEmail="Master Cloud Vault"
         onSyncCloud={handleManualCloudSync}
         isSyncing={isSyncing}
         lastSyncTime={lastSyncTime}

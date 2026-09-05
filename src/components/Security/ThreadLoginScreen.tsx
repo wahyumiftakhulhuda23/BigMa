@@ -3,17 +3,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, 
   Unlock, 
-  ShieldCheck, 
   RefreshCw, 
   CheckCircle2, 
   AlertCircle, 
-  Sparkles, 
   Link as LinkIcon, 
-  X, 
   KeyRound, 
   Shield,
-  LogOut,
-  User
+  Smartphone,
+  Globe2,
+  HelpCircle
 } from 'lucide-react';
 
 interface QuestionItem {
@@ -68,25 +66,24 @@ const DATE_OPTIONS: DateOption[] = [
   { id: 'ans_ibu_lahir', dateText: '17 Maret 1973' },
 ];
 
+const REQUIRED_ACCESS_CODE = '2000';
+
 interface ThreadLoginScreenProps {
   onUnlock: () => void;
-  onSignOut?: () => void;
-  userEmail?: string | null;
-  userName?: string | null;
 }
 
 export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({ 
-  onUnlock, 
-  onSignOut,
-  userEmail,
-  userName 
+  onUnlock 
 }) => {
-  // connections map: questionId -> answerId
+  // Access Code State (PIN: 2000)
+  const [accessCode, setAccessCode] = useState('');
+  
+  // Connections map: questionId -> answerId
   const [connections, setConnections] = useState<Record<string, string>>({});
   const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
   const [statusState, setStatusState] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({
     type: 'idle',
-    message: 'Tarik benang pengaman dengan menghubungkan setiap peristiwa ke tanggal yang tepat.',
+    message: 'Masukkan kode akses brankas (2000) dan hubungkan seluruh benang pengaman ke tanggal yang tepat.',
   });
   const [isUnlocked, setIsUnlocked] = useState(false);
 
@@ -188,7 +185,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
     setSelectedQuestion(null);
     setStatusState({
       type: 'idle',
-      message: 'Benang terpasang. Lanjutkan ke pasangan berikutnya atau verifikasi jika sudah lengkap.',
+      message: 'Benang terpasang. Lanjutkan atau klik Buka Brankas jika sudah selesai.',
     });
   };
 
@@ -208,21 +205,34 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
     setSelectedQuestion(null);
     setStatusState({
       type: 'idle',
-      message: 'Semua benang telah direset. Silakan pasangkan kembali.',
+      message: 'Semua benang telah direset. Silakan hubungkan kembali.',
     });
   };
 
-  // Verify quiz answers
-  const handleVerify = () => {
-    const connectedCount = Object.keys(connections).length;
-    if (connectedCount < 4) {
+  // Verify quiz answers and PIN code
+  const handleVerifyAndUnlock = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    // 1. Verify Access Code
+    if (accessCode.trim() !== REQUIRED_ACCESS_CODE) {
       setStatusState({
         type: 'error',
-        message: `Baru ${connectedCount} dari 4 benang yang terhubung. Hubungkan semua 4 benang terlebih dahulu!`,
+        message: 'Kode Akses Brankas tidak valid. Masukkan kode: 2000',
       });
       return;
     }
 
+    // 2. Verify Yarn Connections count
+    const connectedCount = Object.keys(connections).length;
+    if (connectedCount < 4) {
+      setStatusState({
+        type: 'error',
+        message: `Baru ${connectedCount} dari 4 benang terhubung. Lengkapi semua 4 benang pengaman!`,
+      });
+      return;
+    }
+
+    // 3. Verify Yarn Connections accuracy
     let correctCount = 0;
     QUESTIONS.forEach(q => {
       if (connections[q.id] === q.correctAnswerId) {
@@ -234,15 +244,15 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
       setIsUnlocked(true);
       setStatusState({
         type: 'success',
-        message: 'Kunci Benang Berhasil! Membuka Brankas BigMA...',
+        message: 'Kode & Kuis Benang Valid! Membuka Brankas Cloud BigMA...',
       });
       setTimeout(() => {
         onUnlock();
-      }, 1000);
+      }, 700);
     } else {
       setStatusState({
         type: 'error',
-        message: `Ada pasangan yang tidak cocok (${correctCount}/4 benar). Periksa kembali tanggal masing-masing peristiwa!`,
+        message: `Pasangan benang belum tepat (${correctCount}/4 benar). Periksa kembali tanggal masing-masing peristiwa!`,
       });
     }
   };
@@ -260,44 +270,14 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-3xl bg-neutral-900/90 rounded-2xl border border-[#262626] shadow-2xl p-5 sm:p-7 relative backdrop-blur-md flex flex-col gap-6"
+        className="w-full max-w-3xl bg-neutral-900/95 rounded-2xl border border-[#262626] shadow-2xl p-5 sm:p-7 relative backdrop-blur-md flex flex-col gap-5"
+        id="security-gate-container"
       >
-        {/* User Account Bar & Logout */}
-        {userEmail && (
-          <div className="flex items-center justify-between pb-3 border-b border-[#262626] text-xs">
-            <div className="flex items-center gap-2 text-neutral-300">
-              <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-[10px]">
-                {userName ? userName.charAt(0).toUpperCase() : userEmail.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex flex-col">
-                <span className="font-semibold text-white leading-none">
-                  {userName || userEmail.split('@')[0]}
-                </span>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {userEmail}
-                </span>
-              </div>
-            </div>
-
-            {onSignOut && (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="px-2.5 py-1 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-rose-300 border border-[#333] hover:border-rose-500/40 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Ganti atau keluar dari akun"
-              >
-                <LogOut className="w-3 h-3" />
-                <span>Ganti Akun</span>
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Header Security Gate */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-neutral-950 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold tracking-wider uppercase mb-1 shadow-inner">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Kuis Pengaman Brankas Benang</span>
+            <Globe2 className="w-3.5 h-3.5" />
+            <span>Multi-Device Lifetime Cloud Sync</span>
           </div>
 
           <div className="flex items-center justify-center gap-3">
@@ -312,13 +292,44 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Big<span className="text-amber-400">MA</span>
                 <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700">
-                  Security Gate
+                  Cloud Security Gate
                 </span>
               </h1>
               <p className="text-xs text-neutral-400">
-                Cocokkan setiap nama / peristiwa di sebelah kiri ke tanggal yang benar di sebelah kanan menggunakan tarikan benang.
+                Masukkan kode akses <b>2000</b> dan pasangkan 4 benang pengaman untuk membuka brankas cloud.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Section 1: Kode Akses Keamanan (PIN: 2000) */}
+        <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">1. Kode Akses Brankas</p>
+              <p className="text-[11px] text-neutral-400">Syarat kode masuk: <span className="font-mono text-amber-400 font-bold">2000</span></p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={10}
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              placeholder="Ketik kode 2000..."
+              className="w-full sm:w-44 bg-neutral-900 border border-[#333] focus:border-amber-400 rounded-lg px-3 py-2 text-xs font-mono font-bold text-center tracking-widest text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
+              id="security-gate-pin-input"
+            />
+            {accessCode === REQUIRED_ACCESS_CODE && (
+              <span className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30 text-xs font-bold shrink-0">
+                ✓ Valid
+              </span>
+            )}
           </div>
         </div>
 
@@ -348,198 +359,183 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
           </div>
 
           <div className="text-[11px] font-mono font-bold text-neutral-400 shrink-0 bg-neutral-900 px-2.5 py-1 rounded-lg border border-[#333]">
-            {totalConnected}/4 Terhubung
+            {totalConnected}/4 Benang
           </div>
         </motion.div>
 
-        {/* Interactive Thread Area */}
-        <div 
-          ref={containerRef} 
-          className="relative min-h-[300px] bg-neutral-950/90 rounded-xl border border-[#262626] p-4 sm:p-6 flex justify-between items-center"
-        >
-          {/* SVG Canvas for Strings / Yarn Lines */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
-            <defs>
-              <filter id="yarn-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-              </filter>
-            </defs>
+        {/* Section 2: Interactive Thread Quiz Area */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs px-1 text-neutral-400">
+            <span className="font-bold text-white">2. Kuis Benang Pengaman:</span>
+            <span className="text-[11px]">Klik nama di kiri lalu klik tanggal yang cocok di kanan</span>
+          </div>
 
-            {lines.map((line) => {
-              // Create smooth bezier curve for natural yarn string look
-              const dx = Math.abs(line.x2 - line.x1) * 0.5;
-              const pathD = `M ${line.x1} ${line.y1} C ${line.x1 + dx} ${line.y1}, ${line.x2 - dx} ${line.y2}, ${line.x2} ${line.y2}`;
+          <div 
+            ref={containerRef} 
+            className="relative min-h-[300px] bg-neutral-950/90 rounded-xl border border-[#262626] p-4 sm:p-6 flex justify-between items-center"
+          >
+            {/* SVG Canvas for Strings / Yarn Lines */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+              <defs>
+                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
 
-              return (
-                <g key={`${line.qId}-${line.ansId}`}>
-                  {/* Outer Yarn Glow */}
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke={line.color}
-                    strokeWidth="7"
-                    strokeOpacity="0.25"
-                    strokeLinecap="round"
-                  />
-                  {/* Main Thread Line */}
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke={line.color}
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeDasharray="8,4"
-                    filter="url(#yarn-glow)"
-                    className="animate-[dash_20s_linear_infinite]"
-                  />
-                  {/* Connection Node Circles */}
-                  <circle cx={line.x1} cy={line.y1} r="4.5" fill={line.color} stroke="#0A0A0A" strokeWidth="1.5" />
-                  <circle cx={line.x2} cy={line.y2} r="4.5" fill={line.color} stroke="#0A0A0A" strokeWidth="1.5" />
-                </g>
-              );
-            })}
-          </svg>
+              {lines.map((line) => {
+                // Curved bezier path
+                const dx = Math.abs(line.x2 - line.x1);
+                const cp1x = line.x1 + dx * 0.45;
+                const cp1y = line.y1;
+                const cp2x = line.x2 - dx * 0.45;
+                const cp2y = line.y2;
 
-          {/* Left Column: Questions / Events */}
-          <div className="w-[45%] sm:w-[42%] space-y-3 z-20">
-            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 mb-2">
-              1. Pilih Nama / Peristiwa
-            </div>
-            {QUESTIONS.map((q) => {
-              const isSelected = selectedQuestion === q.id;
-              const isConnected = !!connections[q.id];
+                const pathData = `M ${line.x1} ${line.y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${line.x2} ${line.y2}`;
 
-              return (
-                <div key={q.id} className="relative group">
+                return (
+                  <g key={`${line.qId}-${line.ansId}`}>
+                    {/* Shadow / Glow Line */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      stroke={line.color}
+                      strokeWidth="5"
+                      strokeOpacity="0.4"
+                      filter="url(#glow)"
+                    />
+                    {/* Core Yarn Cord */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      stroke={line.color}
+                      strokeWidth="2.5"
+                      strokeDasharray="4 2"
+                      className="animate-pulse"
+                    />
+                    {/* End anchor pin rings */}
+                    <circle cx={line.x1} cy={line.y1} r="4" fill={line.color} />
+                    <circle cx={line.x2} cy={line.y2} r="4" fill={line.color} />
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Left Column: Questions / Events */}
+            <div className="flex flex-col gap-3.5 z-20 w-[46%] sm:w-60">
+              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mb-1 font-bold">
+                Nama / Peristiwa
+              </p>
+              {QUESTIONS.map((q) => {
+                const isSelected = selectedQuestion === q.id;
+                const isConnected = !!connections[q.id];
+
+                return (
                   <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    key={q.id}
+                    type="button"
                     onClick={() => handleSelectQuestion(q.id)}
-                    className={`w-full text-left p-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                    className={`relative p-3 rounded-xl text-left text-xs font-semibold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-500/20 text-white border-amber-400 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40'
+                        ? 'bg-neutral-800 border-amber-400 text-white shadow-lg ring-1 ring-amber-400'
                         : isConnected
-                        ? 'bg-neutral-900 text-neutral-100 border-[#383838]'
-                        : 'bg-neutral-900/70 text-neutral-300 border-[#262626] hover:border-neutral-700 hover:text-white'
+                        ? 'bg-neutral-900 border-neutral-700 text-neutral-200'
+                        : 'bg-neutral-900/60 border-[#262626] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 truncate">
                       <div 
-                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" 
-                        style={{ backgroundColor: q.color }} 
+                        className="w-2.5 h-2.5 rounded-full shrink-0" 
+                        style={{ backgroundColor: q.color }}
                       />
-                      <span className="leading-tight">{q.label}</span>
+                      <span className="truncate">{q.label}</span>
                     </div>
 
-                    {/* Right connector Pin on left card */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isConnected && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleDisconnect(q.id, e)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDisconnect(q.id, e as any); }}
-                          className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-rose-400 transition-colors cursor-pointer"
-                          title="Lepas benang ini"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-                      <div
-                        ref={(el) => { leftPinRefs.current[q.id] = el; }}
-                        className={`w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center ${
-                          isConnected
-                            ? 'border-white bg-neutral-950'
-                            : isSelected
-                            ? 'border-amber-400 bg-amber-400 animate-ping'
-                            : 'border-neutral-500 bg-neutral-900 group-hover:border-amber-400'
-                        }`}
-                        style={{
-                          borderColor: isConnected ? q.color : undefined,
-                          backgroundColor: isConnected ? q.color : undefined,
-                        }}
-                      />
-                    </div>
+                    {/* Left Pin Anchor Point */}
+                    <div
+                      ref={(el) => { leftPinRefs.current[q.id] = el; }}
+                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${
+                        isConnected
+                          ? 'border-white bg-amber-400'
+                          : isSelected
+                          ? 'border-amber-400 bg-amber-400/30 animate-ping'
+                          : 'border-neutral-600 bg-neutral-950'
+                      }`}
+                    />
+
+                    {/* Disconnect button if connected */}
+                    {isConnected && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDisconnect(q.id, e)}
+                        className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] hover:bg-rose-600 shadow-sm"
+                        title="Lepas benang"
+                      >
+                        ×
+                      </button>
+                    )}
                   </motion.button>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Center Guide Divider */}
-          <div className="hidden sm:flex flex-col items-center justify-center text-neutral-700 z-0 px-2 text-[10px] font-mono tracking-widest uppercase">
-            <span className="rotate-90 my-2 text-neutral-600 font-bold">&bull; &bull; &bull;</span>
-          </div>
-
-          {/* Right Column: Shuffled Date Options */}
-          <div className="w-[45%] sm:w-[42%] space-y-3 z-20">
-            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 mb-2 text-right">
-              2. Pasangkan ke Tanggal
+                );
+              })}
             </div>
-            {DATE_OPTIONS.map((opt) => {
-              // Find if any question is connected to this date
-              const connectedQId = Object.keys(connections).find(q => connections[q] === opt.id);
-              const connectedQ = connectedQId ? QUESTIONS.find(q => q.id === connectedQId) : null;
-              const isTargeted = selectedQuestion && !connectedQ;
 
-              return (
-                <div key={opt.id} className="relative group">
+            {/* Right Column: Date Targets */}
+            <div className="flex flex-col gap-3.5 z-20 w-[46%] sm:w-60">
+              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mb-1 font-bold text-right">
+                Pilihan Tanggal
+              </p>
+              {DATE_OPTIONS.map((opt) => {
+                const connectedQId = Object.keys(connections).find(qId => connections[qId] === opt.id);
+                const isConnected = !!connectedQId;
+                const connectedQData = connectedQId ? QUESTIONS.find(q => q.id === connectedQId) : null;
+
+                return (
                   <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    key={opt.id}
+                    type="button"
                     onClick={() => handleSelectDate(opt.id)}
-                    className={`w-full text-right p-3 rounded-xl border text-xs font-mono font-bold flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                      connectedQ
-                        ? 'bg-neutral-900 text-white border-[#383838]'
-                        : isTargeted
-                        ? 'bg-neutral-900/90 text-amber-300 border-dashed border-amber-500/60 shadow-md shadow-amber-500/10 animate-pulse'
-                        : 'bg-neutral-900/70 text-neutral-300 border-[#262626] hover:border-neutral-700 hover:text-white'
+                    className={`relative p-3 rounded-xl text-right text-xs font-mono font-bold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
+                      isConnected
+                        ? 'bg-neutral-900 border-neutral-700 text-white'
+                        : selectedQuestion
+                        ? 'bg-neutral-900 border-dashed border-amber-500/40 text-neutral-300 hover:border-amber-400 hover:bg-neutral-800'
+                        : 'bg-neutral-900/60 border-[#262626] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700'
                     }`}
                   >
-                    {/* Left Pin on Right Date Card */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <div
-                        ref={(el) => { rightPinRefs.current[opt.id] = el; }}
-                        className={`w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center ${
-                          connectedQ
-                            ? 'border-white bg-neutral-950'
-                            : isTargeted
-                            ? 'border-amber-400 bg-amber-400/50'
-                            : 'border-neutral-500 bg-neutral-900 group-hover:border-amber-400'
-                        }`}
-                        style={{
-                          borderColor: connectedQ ? connectedQ.color : undefined,
-                          backgroundColor: connectedQ ? connectedQ.color : undefined,
-                        }}
-                      />
-                    </div>
+                    {/* Right Pin Anchor Point */}
+                    <div
+                      ref={(el) => { rightPinRefs.current[opt.id] = el; }}
+                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${
+                        isConnected
+                          ? 'border-white'
+                          : selectedQuestion
+                          ? 'border-amber-400 bg-amber-400/20'
+                          : 'border-neutral-600 bg-neutral-950'
+                      }`}
+                      style={{
+                        backgroundColor: connectedQData ? connectedQData.color : undefined,
+                      }}
+                    />
 
-                    <div className="flex flex-col items-end">
-                      <span className="leading-tight text-neutral-100">{opt.dateText}</span>
-                      {connectedQ && (
-                        <span 
-                          className="text-[9px] font-sans font-medium px-1.5 py-0.2 rounded mt-0.5 truncate max-w-[130px]"
-                          style={{ color: connectedQ.color }}
-                        >
-                          {connectedQ.label}
-                        </span>
-                      )}
-                    </div>
+                    <span className="truncate">{opt.dateText}</span>
                   </motion.button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Bottom Actions */}
+        {/* Action Controls & Unlock Button */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
           <button
             type="button"
             onClick={handleReset}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#262626] hover:border-neutral-700 bg-neutral-950 hover:bg-neutral-800 text-xs font-medium text-neutral-400 hover:text-neutral-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            id="reset-yarn-quiz-btn"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-[#262626] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            id="reset-yarn-btn"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Reset Benang</span>
@@ -548,34 +544,26 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={handleVerify}
-            disabled={isUnlocked}
-            className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-sans font-black flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
-              isUnlocked
-                ? 'bg-emerald-500 text-neutral-950 shadow-emerald-500/30'
-                : totalConnected === 4
-                ? 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 shadow-amber-500/25 ring-2 ring-amber-400/50 animate-pulse'
-                : 'bg-neutral-800 text-neutral-400 border border-[#333] hover:text-neutral-200'
-            }`}
-            id="verify-yarn-quiz-btn"
+            type="button"
+            onClick={handleVerifyAndUnlock}
+            className="w-full sm:w-auto flex-1 py-3 px-6 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+            id="verify-unlock-btn"
           >
-            {isUnlocked ? (
-              <>
-                <Sparkles className="w-4 h-4 stroke-[3]" />
-                <span>Brankas Berhasil Terbuka!</span>
-              </>
-            ) : (
-              <>
-                <KeyRound className="w-4 h-4 stroke-[3]" />
-                <span>Buka Kunci Brankas BigMA</span>
-              </>
-            )}
+            <Shield className="w-4 h-4" />
+            <span>Buka Brankas Cloud BigMA</span>
           </motion.button>
         </div>
 
-        {/* Footer Note */}
-        <div className="text-center text-[11px] text-neutral-500 border-t border-[#262626] pt-3">
-          Sistem Verifikasi Multi-Kunci &bull; BigMA Account Manajement Vault &bull; &copy; 2026
+        {/* Multi-Device Lifetime Cloud Badges */}
+        <div className="pt-2 border-t border-[#262626] grid grid-cols-2 gap-2 text-[10px] text-neutral-400">
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-neutral-950/60 border border-[#222]">
+            <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>HP, Tablet, Laptop &amp; PC</span>
+          </div>
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-neutral-950/60 border border-[#222]">
+            <Globe2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>Sinkronisasi Otomatis Seumur Hidup</span>
+          </div>
         </div>
       </motion.div>
     </div>

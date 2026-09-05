@@ -306,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <div className="hidden md:block text-right">
                   <p className="text-xs font-sans font-bold text-neutral-200 leading-tight truncate max-w-[110px]">
-                    {userName || (userEmail ? userEmail.split('@')[0] : 'Admin')}
+                    {userName || 'BigMA Studio'}
                   </p>
                   <p className="text-[9px] text-amber-400/90 font-mono flex items-center justify-end gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -314,7 +314,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </p>
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-amber-500/40 flex items-center justify-center text-xs font-mono font-bold text-amber-400 shadow-inner">
-                  {userName ? userName.charAt(0).toUpperCase() : (userEmail ? userEmail.charAt(0).toUpperCase() : 'BM')}
+                  BM
                 </div>
               </button>
 
@@ -331,17 +331,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <div className="p-2.5 bg-neutral-950 rounded-lg border border-[#262626] mb-1">
                         <p className="text-xs font-bold text-white truncate">
-                          {userName || 'Admin BigMA'}
+                          BigMA Master Cloud Vault
                         </p>
                         <p className="text-[11px] text-neutral-400 font-mono truncate">
-                          {userEmail || 'admin@bigma.studio'}
+                          Multi-Device Lifetime Sync
                         </p>
                         <div className="mt-2 pt-2 border-t border-[#262626] flex items-center justify-between text-[10px] text-neutral-400">
                           <span className="flex items-center gap-1 text-emerald-400">
                             <Cloud className="w-3 h-3" />
-                            <span>Multi-Device Sync</span>
+                            <span>Sinkron Real-time Aktif</span>
                           </span>
-                          <span className="text-neutral-500">Firebase Vault</span>
+                          <span className="text-amber-400 font-mono">Kode: 2000</span>
                         </div>
                       </div>
 
@@ -355,21 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-amber-300 flex items-center gap-2.5 transition-colors cursor-pointer"
                         >
                           <Lock className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Kunci Sesi (Kuis Benang)</span>
-                        </button>
-                      )}
-
-                      {onSignOut && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            onSignOut();
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 flex items-center gap-2.5 transition-colors cursor-pointer border-t border-[#262626]/50 mt-1"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span>Keluar Akun (Logout)</span>
+                          <span>Kunci Brankas (PIN 2000 &amp; Benang)</span>
                         </button>
                       )}
                     </motion.div>

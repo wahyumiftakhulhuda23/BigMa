@@ -1,10 +1,11 @@
 import { db, doc, getDoc, setDoc, onSnapshot } from '../lib/firebase';
-import { AppData, AppSettings, GmailAccount, PlatformAccount, AccountNote, RealtimeFinance, IncomeRecord, ProjectDeadline } from '../types';
+import { AppData } from '../types';
 
+export const MASTER_VAULT_DOC_ID = 'bigma_master_vault';
 const COLLECTION_NAME = 'userAppData';
 
 // Clean data before storing in Firestore (ensure no undefined fields)
-function sanitizeAppData(data: AppData): AppData {
+export function sanitizeAppData(data: AppData): AppData {
   return {
     gmails: (data.gmails || []).map(g => ({
       ...g,
@@ -52,12 +53,11 @@ function sanitizeAppData(data: AppData): AppData {
 }
 
 /**
- * Save user app data to Firestore cloud document
+ * Save master vault app data to Firestore cloud document (synchronized across all devices)
  */
-export async function saveUserAppDataToCloud(userId: string, data: AppData): Promise<boolean> {
-  if (!userId) return false;
+export async function saveMasterAppDataToCloud(data: AppData, docId: string = MASTER_VAULT_DOC_ID): Promise<boolean> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, userId);
+    const docRef = doc(db, COLLECTION_NAME, docId);
     const sanitized = sanitizeAppData(data);
     await setDoc(docRef, {
       ...sanitized,
@@ -65,18 +65,17 @@ export async function saveUserAppDataToCloud(userId: string, data: AppData): Pro
     }, { merge: true });
     return true;
   } catch (error) {
-    console.error('Error saving data to Firestore:', error);
+    console.error('Error saving data to Cloud Firestore:', error);
     return false;
   }
 }
 
 /**
- * Load user app data from Firestore cloud document
+ * Load master vault app data from Firestore cloud document
  */
-export async function loadUserAppDataFromCloud(userId: string): Promise<AppData | null> {
-  if (!userId) return null;
+export async function loadMasterAppDataFromCloud(docId: string = MASTER_VAULT_DOC_ID): Promise<AppData | null> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, userId);
+    const docRef = doc(db, COLLECTION_NAME, docId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       const data = docSnap.data();
@@ -96,22 +95,20 @@ export async function loadUserAppDataFromCloud(userId: string): Promise<AppData 
     }
     return null;
   } catch (error) {
-    console.error('Error loading data from Firestore:', error);
+    console.error('Error loading data from Cloud Firestore:', error);
     return null;
   }
 }
 
 /**
- * Subscribe in real-time to remote updates from other devices
+ * Subscribe in real-time to remote updates from other devices (HP, Laptop, PC)
  */
-export function subscribeUserAppDataFromCloud(
-  userId: string, 
-  onUpdate: (data: AppData) => void
+export function subscribeMasterAppDataFromCloud(
+  onUpdate: (data: AppData) => void,
+  docId: string = MASTER_VAULT_DOC_ID
 ): () => void {
-  if (!userId) return () => {};
-  
   try {
-    const docRef = doc(db, COLLECTION_NAME, userId);
+    const docRef = doc(db, COLLECTION_NAME, docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -134,7 +131,12 @@ export function subscribeUserAppDataFromCloud(
     });
     return unsubscribe;
   } catch (err) {
-    console.error('Failed to subscribe to Firestore:', err);
+    console.error('Failed to subscribe to Cloud Firestore:', err);
     return () => {};
   }
 }
+
+// Aliases for compatibility
+export const saveUserAppDataToCloud = (userId: string, data: AppData) => saveMasterAppDataToCloud(data, userId || MASTER_VAULT_DOC_ID);
+export const loadUserAppDataFromCloud = (userId: string) => loadMasterAppDataFromCloud(userId || MASTER_VAULT_DOC_ID);
+export const subscribeUserAppDataFromCloud = (userId: string, onUpdate: (data: AppData) => void) => subscribeMasterAppDataFromCloud(onUpdate, userId || MASTER_VAULT_DOC_ID);
