@@ -15,6 +15,8 @@ export const initialStarterData: AppData = {
   realtimeFinances: [],
   incomes: [],
   deadlines: [],
+  youtubeSchedules: [],
+  microstockItems: [],
 };
 
 // Optional sample data template for testing or demo reset
@@ -72,6 +74,20 @@ export const demoSampleData: AppData = {
   ],
   incomes: [],
   deadlines: [],
+  youtubeSchedules: [
+    {
+      id: 'yt-1',
+      platformAccountId: 'plat-1',
+      jadwal: '2026-09-10',
+      draft: 4,
+      siapUpload: 2,
+      monet: 'Ya',
+      jumlahBahan: 12,
+      keterangan: 'Eps 15 Motion Design tutorial siap render',
+      updatedAt: '2026-09-05',
+    }
+  ],
+  microstockItems: [],
 };
 
 export function loadAppData(): AppData {
@@ -91,6 +107,8 @@ export function loadAppData(): AppData {
       realtimeFinances: Array.isArray(parsed.realtimeFinances) ? parsed.realtimeFinances : [],
       incomes: Array.isArray(parsed.incomes) ? parsed.incomes : [],
       deadlines: Array.isArray(parsed.deadlines) ? parsed.deadlines : [],
+      youtubeSchedules: Array.isArray(parsed.youtubeSchedules) ? parsed.youtubeSchedules : [],
+      microstockItems: Array.isArray(parsed.microstockItems) ? parsed.microstockItems : [],
     };
   } catch (err) {
     console.error('Error loading data from localStorage, using clean initial data:', err);

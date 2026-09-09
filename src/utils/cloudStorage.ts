@@ -1,5 +1,15 @@
 import { db, doc, getDoc, setDoc, onSnapshot } from '../lib/firebase';
-import { AppData, GmailAccount, PlatformAccount, AccountNote, RealtimeFinance, IncomeRecord, ProjectDeadline } from '../types';
+import { 
+  AppData, 
+  GmailAccount, 
+  PlatformAccount, 
+  AccountNote, 
+  RealtimeFinance, 
+  IncomeRecord, 
+  ProjectDeadline,
+  YoutubeScheduleItem,
+  MicrostockItem 
+} from '../types';
 
 export const MASTER_VAULT_DOC_ID = 'bigma_master_vault';
 export const COLLECTION_NAME = 'userAppData';
@@ -86,6 +96,26 @@ export function sanitizeAppData(data: Partial<AppData>): AppData {
       targetQuantity: d.targetQuantity ?? '',
       notes: d.notes ?? '',
       createdAt: d.createdAt || new Date().toISOString(),
+    })),
+    youtubeSchedules: (data.youtubeSchedules || []).map((y: Partial<YoutubeScheduleItem>) => ({
+      id: y.id || `yt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      platformAccountId: y.platformAccountId || '',
+      jadwal: y.jadwal ?? '',
+      draft: Number(y.draft) || 0,
+      siapUpload: Number(y.siapUpload) || 0,
+      monet: (y.monet as any) || 'Tidak',
+      jumlahBahan: Number(y.jumlahBahan) || 0,
+      keterangan: y.keterangan ?? '',
+      updatedAt: y.updatedAt || new Date().toISOString(),
+    })),
+    microstockItems: (data.microstockItems || []).map((m: Partial<MicrostockItem>) => ({
+      id: m.id || `ms_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      platformAccountId: m.platformAccountId || '',
+      jumlahItem: Number(m.jumlahItem) || 0,
+      newItem: Number(m.newItem) || 0,
+      reject: Number(m.reject) || 0,
+      konsentrasiAkun: m.konsentrasiAkun ?? '',
+      updatedAt: m.updatedAt || new Date().toISOString(),
     })),
     settings: {
       studioName: data.settings?.studioName || 'BigMA Studio',

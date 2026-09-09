@@ -7,7 +7,9 @@ import {
   AccountNote,
   RealtimeFinance, 
   IncomeRecord, 
-  ProjectDeadline, 
+  ProjectDeadline,
+  YoutubeScheduleItem,
+  MicrostockItem,
   ActiveTab 
 } from './types';
 import { loadAppData, saveAppData } from './utils/storage';
@@ -33,6 +35,10 @@ import { GmailModal } from './components/GmailDatabase/GmailModal';
 
 import { PlatformAccountsView } from './components/PlatformAccounts/PlatformAccountsView';
 import { PlatformAccountModal } from './components/PlatformAccounts/PlatformAccountModal';
+
+// Highlight Modules #1 & #2
+import { YoutubeScheduleView } from './components/YoutubeSchedule/YoutubeScheduleView';
+import { MicrostockDataView } from './components/MicrostockData/MicrostockDataView';
 
 import { AccountNotesView } from './components/AccountNotes/AccountNotesView';
 import { AccountNoteModal } from './components/AccountNotes/AccountNoteModal';
@@ -343,14 +349,70 @@ export default function App() {
     }));
   };
 
+  // ==========================================
+  // CRUD HANDLERS FOR YOUTUBE SCHEDULE (HIGHLIGHT #1)
+  // ==========================================
+  const handleSaveYoutubeSchedule = (schedule: YoutubeScheduleItem) => {
+    updateAndSyncData(prev => {
+      const currentList = prev.youtubeSchedules || [];
+      const exists = currentList.some(s => s.platformAccountId === schedule.platformAccountId || s.id === schedule.id);
+      const newSchedules = exists
+        ? currentList.map(s => (s.platformAccountId === schedule.platformAccountId || s.id === schedule.id) ? schedule : s)
+        : [...currentList, schedule];
+      return { ...prev, youtubeSchedules: newSchedules };
+    });
+  };
+
+  const handleSaveAllYoutubeSchedules = (schedules: YoutubeScheduleItem[]) => {
+    updateAndSyncData(prev => {
+      const scheduleMap = new Map<string, YoutubeScheduleItem>();
+      (prev.youtubeSchedules || []).forEach(s => scheduleMap.set(s.platformAccountId, s));
+      schedules.forEach(s => scheduleMap.set(s.platformAccountId, s));
+      return { ...prev, youtubeSchedules: Array.from(scheduleMap.values()) };
+    });
+  };
+
+  // ==========================================
+  // CRUD HANDLERS FOR MICROSTOCK DATA (HIGHLIGHT #2)
+  // ==========================================
+  const handleSaveMicrostockItem = (item: MicrostockItem) => {
+    updateAndSyncData(prev => {
+      const currentList = prev.microstockItems || [];
+      const exists = currentList.some(m => m.platformAccountId === item.platformAccountId || m.id === item.id);
+      const newItems = exists
+        ? currentList.map(m => (m.platformAccountId === item.platformAccountId || m.id === item.id) ? item : m)
+        : [...currentList, item];
+      return { ...prev, microstockItems: newItems };
+    });
+  };
+
+  const handleSaveAllMicrostockItems = (items: MicrostockItem[]) => {
+    updateAndSyncData(prev => {
+      const itemMap = new Map<string, MicrostockItem>();
+      (prev.microstockItems || []).forEach(m => itemMap.set(m.platformAccountId, m));
+      items.forEach(m => itemMap.set(m.platformAccountId, m));
+      return { ...prev, microstockItems: Array.from(itemMap.values()) };
+    });
+  };
+
   // Quick Add from Top Navbar
-  const handleQuickAdd = (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline') => {
+  const handleQuickAdd = (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline' | 'youtube' | 'microstock') => {
     if (type === 'gmail') {
       setEditingGmail(null);
       setIsGmailModalOpen(true);
     } else if (type === 'platform') {
       setEditingPlatform(null);
       setPreselectedPlatformName(undefined);
+      setPreselectedGmailId(undefined);
+      setIsPlatformModalOpen(true);
+    } else if (type === 'youtube') {
+      setEditingPlatform(null);
+      setPreselectedPlatformName('YouTube');
+      setPreselectedGmailId(undefined);
+      setIsPlatformModalOpen(true);
+    } else if (type === 'microstock') {
+      setEditingPlatform(null);
+      setPreselectedPlatformName('Adobe Stock');
       setPreselectedGmailId(undefined);
       setIsPlatformModalOpen(true);
     } else if (type === 'note') {
@@ -471,6 +533,68 @@ export default function App() {
                   setEditingFinance(null);
                   setPreselectedFinancePlatformId(platformAccountId);
                   setIsFinanceModalOpen(true);
+                }}
+              />
+            </motion.div>
+          )}
+
+          {/* Highlight #1: Penjadwalan YouTube */}
+          {activeTab === 'youtube-schedule' && (
+            <motion.div
+              key="youtube-schedule"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <YoutubeScheduleView
+                platformAccounts={appData.platformAccounts}
+                gmails={appData.gmails}
+                schedules={appData.youtubeSchedules || []}
+                onSaveSchedule={handleSaveYoutubeSchedule}
+                onSaveAllSchedules={handleSaveAllYoutubeSchedules}
+                onAddYoutubeAccount={() => {
+                  setEditingPlatform(null);
+                  setPreselectedPlatformName('YouTube');
+                  setPreselectedGmailId(undefined);
+                  setIsPlatformModalOpen(true);
+                }}
+                onEditPlatformAccount={(account) => {
+                  setEditingPlatform(account);
+                  setPreselectedPlatformName(undefined);
+                  setPreselectedGmailId(undefined);
+                  setIsPlatformModalOpen(true);
+                }}
+              />
+            </motion.div>
+          )}
+
+          {/* Highlight #2: Data Microstock */}
+          {activeTab === 'microstock' && (
+            <motion.div
+              key="microstock"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <MicrostockDataView
+                platformAccounts={appData.platformAccounts}
+                gmails={appData.gmails}
+                microstockItems={appData.microstockItems || []}
+                onSaveMicrostockItem={handleSaveMicrostockItem}
+                onSaveAllMicrostockItems={handleSaveAllMicrostockItems}
+                onAddMicrostockAccount={(plat) => {
+                  setEditingPlatform(null);
+                  setPreselectedPlatformName(plat || 'Adobe Stock');
+                  setPreselectedGmailId(undefined);
+                  setIsPlatformModalOpen(true);
+                }}
+                onEditPlatformAccount={(account) => {
+                  setEditingPlatform(account);
+                  setPreselectedPlatformName(undefined);
+                  setPreselectedGmailId(undefined);
+                  setIsPlatformModalOpen(true);
                 }}
               />
             </motion.div>

@@ -19,6 +19,8 @@
         "realtimeFinances": { "type": "array", "description": "Array of realtime finance items" },
         "incomes": { "type": "array", "description": "Array of income records" },
         "deadlines": { "type": "array", "description": "Array of project deadlines" },
+        "youtubeSchedules": { "type": "array", "description": "Array of YouTube schedule entries" },
+        "microstockItems": { "type": "array", "description": "Array of Microstock operational records" },
         "settings": { "type": "map", "description": "App settings like currency rates" },
         "updatedAt": { "type": "string", "description": "Last sync timestamp" }
       }

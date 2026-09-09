@@ -20,7 +20,10 @@ import {
   LogOut,
   Lock,
   Cloud,
-  User as UserIcon
+  User as UserIcon,
+  PlaySquare,
+  Image as ImageIcon,
+  Flame
 } from 'lucide-react';
 import { formatCurrency, getDeadlineUrgency } from '../utils/formatters';
 
@@ -31,7 +34,7 @@ interface NavbarProps {
   onOpenNotifications: () => void;
   onOpenBackupModal: () => void;
   onExportAll?: () => void;
-  onQuickAdd: (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline') => void;
+  onQuickAdd: (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline' | 'youtube' | 'microstock') => void;
   userEmail?: string | null;
   userName?: string | null;
   onSignOut?: () => void;
@@ -69,9 +72,50 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const totalUrgent = urgentDeadlineCount + urgentNoteCount;
 
-  const navTabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }>; count?: number; countColor?: string }[] = [
+  // Count YouTube & Microstock accounts
+  const totalYoutubeAccounts = (appData.platformAccounts || []).filter(p => {
+    const plat = (p.platform || '').toLowerCase();
+    const cust = (p.customPlatformName || '').toLowerCase();
+    return plat.includes('youtube') || cust.includes('youtube') || p.platform === 'YouTube';
+  }).length;
+
+  const totalMicrostockAccounts = (appData.platformAccounts || []).filter(p => {
+    const plat = (p.platform || '').toLowerCase();
+    return !plat.includes('youtube');
+  }).length;
+
+  const navTabs: { 
+    id: ActiveTab; 
+    label: string; 
+    icon: React.FC<{ className?: string }>; 
+    count?: number; 
+    countColor?: string;
+    isHighlight?: boolean;
+    highlightBadge?: string;
+    activeBorderColor?: string;
+  }[] = [
     { id: 'gmail', label: '1. Database Gmail', icon: KeyRound, count: appData.gmails.length },
     { id: 'platforms', label: '2. Kelola Akun Platform', icon: Layers, count: appData.platformAccounts.length },
+    { 
+      id: 'youtube-schedule', 
+      label: 'Penjadwalan YouTube', 
+      icon: PlaySquare, 
+      count: totalYoutubeAccounts,
+      isHighlight: true,
+      highlightBadge: 'Highlight #1',
+      countColor: 'bg-red-500/20 text-red-300 border-red-500/40 font-bold',
+      activeBorderColor: 'border-red-500/60'
+    },
+    { 
+      id: 'microstock', 
+      label: 'Data Microstock', 
+      icon: ImageIcon, 
+      count: totalMicrostockAccounts,
+      isHighlight: true,
+      highlightBadge: 'Highlight #2',
+      countColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 font-bold',
+      activeBorderColor: 'border-indigo-500/60'
+    },
     { id: 'notes', label: '3. Catatan Akun', icon: StickyNote, count: (appData.notes || []).length },
     { id: 'finance', label: '4. Keuangan Realtime', icon: Wallet },
     { id: 'income', label: '5. Database Pemasukan', icon: TrendingUp, count: appData.incomes.length },

@@ -90,6 +90,30 @@ export interface AppSettings {
   studioName: string;
 }
 
+export type MonetizationStatus = 'Ya' | 'Tidak' | 'Hampir';
+
+export interface YoutubeScheduleItem {
+  id: string;
+  platformAccountId: string;
+  jadwal: string; // date format (e.g. YYYY-MM-DD or custom text date)
+  draft: number; // angka
+  siapUpload: number; // angka
+  monet: MonetizationStatus; // dropdown: Ya, Tidak, Hampir
+  jumlahBahan: number; // angka
+  keterangan: string; // text
+  updatedAt: string;
+}
+
+export interface MicrostockItem {
+  id: string;
+  platformAccountId: string;
+  jumlahItem: number; // angka
+  newItem: number; // angka
+  reject: number; // angka
+  konsentrasiAkun: string; // text
+  updatedAt: string;
+}
+
 export interface AppData {
   gmails: GmailAccount[];
   platformAccounts: PlatformAccount[];
@@ -97,7 +121,17 @@ export interface AppData {
   realtimeFinances: RealtimeFinance[];
   incomes: IncomeRecord[];
   deadlines: ProjectDeadline[];
+  youtubeSchedules: YoutubeScheduleItem[];
+  microstockItems: MicrostockItem[];
   settings: AppSettings;
 }
 
-export type ActiveTab = 'gmail' | 'platforms' | 'notes' | 'finance' | 'income' | 'calendar';
+export type ActiveTab = 
+  | 'gmail' 
+  | 'platforms' 
+  | 'youtube-schedule' 
+  | 'microstock' 
+  | 'notes' 
+  | 'finance' 
+  | 'income' 
+  | 'calendar';
