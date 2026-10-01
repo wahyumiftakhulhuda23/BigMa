@@ -27,6 +27,7 @@ import { getDeadlineUrgency } from '../../utils/formatters';
 
 interface ProjectDevViewProps {
   items: DevProjectItem[];
+  activeTab?: string;
   onAddItem: (type?: DevItemType) => void;
   onEditItem: (item: DevProjectItem) => void;
   onDeleteItem: (id: string) => void;
@@ -35,6 +36,7 @@ interface ProjectDevViewProps {
 
 export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
   items = [],
+  activeTab,
   onAddItem,
   onEditItem,
   onDeleteItem,
@@ -45,6 +47,13 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
   const [selectedApp, setSelectedApp] = useState<string>('Semua');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('Semua');
   const [selectedStatus, setSelectedStatus] = useState<string>('Semua');
+
+  React.useEffect(() => {
+    if (activeTab === 'project-dev-bugs') setActiveFilter('Bug');
+    else if (activeTab === 'project-dev-ideas') setActiveFilter('Ide');
+    else if (activeTab === 'project-dev-maintenance') setActiveFilter('Maintenance');
+    else if (activeTab === 'project-dev-all') setActiveFilter('Semua');
+  }, [activeTab]);
 
   // Stats calculation
   const stats = useMemo(() => {

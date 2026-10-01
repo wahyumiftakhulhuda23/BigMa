@@ -95,10 +95,11 @@ export const BackupModal: React.FC<BackupModalProps> = ({
           throw new Error('Format berkas backup JSON tidak valid');
         }
         
-        // Ensure notes array exists
-        if (!parsed.notes) {
-          parsed.notes = [];
-        }
+        // Ensure all arrays exist
+        if (!parsed.notes) parsed.notes = [];
+        if (!parsed.officeTasks) parsed.officeTasks = [];
+        if (!parsed.devProjects) parsed.devProjects = [];
+        if (!parsed.digitalProducts) parsed.digitalProducts = [];
 
         if (onRestoreData) {
           onRestoreData(parsed);

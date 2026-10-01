@@ -587,7 +587,7 @@ export default function App() {
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8" id="main-content-area">
           <AnimatePresence mode="wait">
             {/* Office Mode View */}
-            {(topMode === 'office' || activeTab === 'office-jobs') && (
+            {topMode === 'office' && (activeTab === 'office-jobs' || (activeTab !== 'notes' && activeTab !== 'calendar')) && (
               <motion.div
                 key="office-jobs"
                 initial={{ opacity: 0, y: 8 }}
@@ -612,7 +612,7 @@ export default function App() {
             )}
 
             {/* Project Dev Mode View */}
-            {(topMode === 'project-dev' || activeTab.startsWith('project-dev-')) && (
+            {topMode === 'project-dev' && (
               <motion.div
                 key="project-dev"
                 initial={{ opacity: 0, y: 8 }}
@@ -622,6 +622,7 @@ export default function App() {
               >
                 <ProjectDevView
                   items={appData.devProjects || []}
+                  activeTab={activeTab}
                   onAddItem={(type) => {
                     setDefaultDevType(type || 'Bug');
                     setEditingDevItem(null);
@@ -638,7 +639,7 @@ export default function App() {
             )}
 
             {/* Digital Product Mode View */}
-            {(topMode === 'digital-product' || activeTab.startsWith('digital-product-')) && (
+            {topMode === 'digital-product' && (
               <motion.div
                 key="digital-product"
                 initial={{ opacity: 0, y: 8 }}
@@ -648,6 +649,7 @@ export default function App() {
               >
                 <DigitalProductView
                   products={appData.digitalProducts || []}
+                  activeTab={activeTab}
                   onAddProduct={() => {
                     setEditingDigitalItem(null);
                     setIsDigitalModalOpen(true);

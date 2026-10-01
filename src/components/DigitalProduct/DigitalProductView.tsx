@@ -26,6 +26,7 @@ import { getDeadlineUrgency, formatCurrency } from '../../utils/formatters';
 
 interface DigitalProductViewProps {
   products: DigitalProductItem[];
+  activeTab?: string;
   onAddProduct: () => void;
   onEditProduct: (product: DigitalProductItem) => void;
   onDeleteProduct: (id: string) => void;
@@ -34,6 +35,7 @@ interface DigitalProductViewProps {
 
 export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
   products = [],
+  activeTab,
   onAddProduct,
   onEditProduct,
   onDeleteProduct,
@@ -43,6 +45,12 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedPlatform, setSelectedPlatform] = useState<string>('Semua');
+
+  React.useEffect(() => {
+    if (activeTab === 'digital-product-ideas') setActiveFilter('Ide / Konsep');
+    else if (activeTab === 'digital-product-calendar') setActiveFilter('Semua');
+    else if (activeTab === 'digital-product-all') setActiveFilter('Semua');
+  }, [activeTab]);
 
   // Stats calculation
   const stats = useMemo(() => {
