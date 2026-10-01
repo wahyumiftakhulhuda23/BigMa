@@ -10,6 +10,11 @@ import {
   ProjectDeadline,
   YoutubeScheduleItem,
   MicrostockItem,
+  OfficeTask,
+  DevProjectItem,
+  DigitalProductItem,
+  DevItemType,
+  TopMode,
   ActiveTab 
 } from './types';
 import { loadAppData, saveAppData } from './utils/storage';
@@ -21,11 +26,11 @@ import {
 import { exportFullStudioWorkbook } from './utils/exportUtils';
 import { getDeadlineUrgency } from './utils/formatters';
 
-// Security Gate Screen (PIN 2000 + Yarn Quiz)
+// Security Gate Screen (PIN + Yarn Quiz)
 import { ThreadLoginScreen } from './components/Security/ThreadLoginScreen';
 
-// Navigation and Modals
-import { Navbar } from './components/Navbar';
+// Navigation Sidebar and Modals
+import { Sidebar } from './components/Sidebar';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { BackupModal } from './components/BackupModal';
 
@@ -39,6 +44,18 @@ import { PlatformAccountModal } from './components/PlatformAccounts/PlatformAcco
 // Highlight Modules #1 & #2
 import { YoutubeScheduleView } from './components/YoutubeSchedule/YoutubeScheduleView';
 import { MicrostockDataView } from './components/MicrostockData/MicrostockDataView';
+
+// Office Mode Module
+import { OfficeView } from './components/Office/OfficeView';
+import { OfficeModal } from './components/Office/OfficeModal';
+
+// Project Dev Module
+import { ProjectDevView } from './components/ProjectDev/ProjectDevView';
+import { ProjectDevModal } from './components/ProjectDev/ProjectDevModal';
+
+// Digital Product Module
+import { DigitalProductView } from './components/DigitalProduct/DigitalProductView';
+import { DigitalProductModal } from './components/DigitalProduct/DigitalProductModal';
 
 import { AccountNotesView } from './components/AccountNotes/AccountNotesView';
 import { AccountNoteModal } from './components/AccountNotes/AccountNoteModal';
@@ -61,9 +78,23 @@ export default function App() {
 
   // 2. Core App Data State
   const [appData, setAppData] = useState<AppData>(() => loadAppData());
+  const [topMode, setTopMode] = useState<TopMode>('freelance');
   const [activeTab, setActiveTab] = useState<ActiveTab>('gmail');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+  // Office Modal State
+  const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
+  const [editingOfficeTask, setEditingOfficeTask] = useState<OfficeTask | null>(null);
+
+  // Project Dev Modal State
+  const [isDevModalOpen, setIsDevModalOpen] = useState(false);
+  const [editingDevItem, setEditingDevItem] = useState<DevProjectItem | null>(null);
+  const [defaultDevType, setDefaultDevType] = useState<DevItemType>('Bug');
+
+  // Digital Product Modal State
+  const [isDigitalModalOpen, setIsDigitalModalOpen] = useState(false);
+  const [editingDigitalItem, setEditingDigitalItem] = useState<DigitalProductItem | null>(null);
 
   // Drawer & Modals
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -395,9 +426,93 @@ export default function App() {
     });
   };
 
-  // Quick Add from Top Navbar
-  const handleQuickAdd = (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline' | 'youtube' | 'microstock') => {
-    if (type === 'gmail') {
+  // Office Tasks Handlers
+  const handleSaveOfficeTask = (task: OfficeTask) => {
+    updateAndSyncData(prev => {
+      const currentTasks = prev.officeTasks || [];
+      const exists = currentTasks.some(t => t.id === task.id);
+      let updated: OfficeTask[];
+      if (exists) {
+        updated = currentTasks.map(t => t.id === task.id ? task : t);
+      } else {
+        updated = [task, ...currentTasks];
+      }
+      return { ...prev, officeTasks: updated };
+    });
+  };
+
+  const handleDeleteOfficeTask = (id: string) => {
+    updateAndSyncData(prev => ({
+      ...prev,
+      officeTasks: (prev.officeTasks || []).filter(t => t.id !== id),
+    }));
+  };
+
+  // Project Dev Handlers
+  const handleSaveDevItem = (item: DevProjectItem) => {
+    updateAndSyncData(prev => {
+      const current = prev.devProjects || [];
+      const exists = current.some(i => i.id === item.id);
+      let updated: DevProjectItem[];
+      if (exists) {
+        updated = current.map(i => i.id === item.id ? item : i);
+      } else {
+        updated = [item, ...current];
+      }
+      return { ...prev, devProjects: updated };
+    });
+  };
+
+  const handleDeleteDevItem = (id: string) => {
+    updateAndSyncData(prev => ({
+      ...prev,
+      devProjects: (prev.devProjects || []).filter(i => i.id !== id),
+    }));
+  };
+
+  // Digital Product Handlers
+  const handleSaveDigitalProduct = (product: DigitalProductItem) => {
+    updateAndSyncData(prev => {
+      const current = prev.digitalProducts || [];
+      const exists = current.some(p => p.id === product.id);
+      let updated: DigitalProductItem[];
+      if (exists) {
+        updated = current.map(p => p.id === product.id ? product : p);
+      } else {
+        updated = [product, ...current];
+      }
+      return { ...prev, digitalProducts: updated };
+    });
+  };
+
+  const handleDeleteDigitalProduct = (id: string) => {
+    updateAndSyncData(prev => ({
+      ...prev,
+      digitalProducts: (prev.digitalProducts || []).filter(p => p.id !== id),
+    }));
+  };
+
+  // Quick Add from Sidebar / Actions
+  const handleQuickAdd = (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline' | 'youtube' | 'microstock' | 'office' | 'dev-bug' | 'dev-idea' | 'dev-maint' | 'digital-product') => {
+    if (type === 'dev-bug') {
+      setDefaultDevType('Bug');
+      setEditingDevItem(null);
+      setIsDevModalOpen(true);
+    } else if (type === 'dev-idea') {
+      setDefaultDevType('Ide');
+      setEditingDevItem(null);
+      setIsDevModalOpen(true);
+    } else if (type === 'dev-maint') {
+      setDefaultDevType('Maintenance');
+      setEditingDevItem(null);
+      setIsDevModalOpen(true);
+    } else if (type === 'digital-product') {
+      setEditingDigitalItem(null);
+      setIsDigitalModalOpen(true);
+    } else if (type === 'office') {
+      setEditingOfficeTask(null);
+      setIsOfficeModalOpen(true);
+    } else if (type === 'gmail') {
       setEditingGmail(null);
       setIsGmailModalOpen(true);
     } else if (type === 'platform') {
@@ -446,8 +561,10 @@ export default function App() {
   // ----------------------------------------------------
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col antialiased text-[#E5E5E5]" id="bigma-studio-root">
-      {/* Top Application Navigation Bar */}
-      <Navbar
+      {/* Sidebar Navigation */}
+      <Sidebar
+        topMode={topMode}
+        setTopMode={setTopMode}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         appData={appData}
@@ -465,11 +582,88 @@ export default function App() {
         onQuickAdd={handleQuickAdd}
       />
 
-      {/* Main Content Area with Transitions */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8" id="main-content-area">
-        <AnimatePresence mode="wait">
-          {/* Module 1: Database Gmail */}
-          {activeTab === 'gmail' && (
+      {/* Main Content Area with Sidebar Offset */}
+      <div className="flex-1 lg:ml-72 flex flex-col min-h-screen transition-all duration-300">
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8" id="main-content-area">
+          <AnimatePresence mode="wait">
+            {/* Office Mode View */}
+            {(topMode === 'office' || activeTab === 'office-jobs') && (
+              <motion.div
+                key="office-jobs"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <OfficeView
+                  tasks={appData.officeTasks || []}
+                  onAddTask={() => {
+                    setEditingOfficeTask(null);
+                    setIsOfficeModalOpen(true);
+                  }}
+                  onEditTask={(task) => {
+                    setEditingOfficeTask(task);
+                    setIsOfficeModalOpen(true);
+                  }}
+                  onDeleteTask={handleDeleteOfficeTask}
+                  onUpdateTask={handleSaveOfficeTask}
+                />
+              </motion.div>
+            )}
+
+            {/* Project Dev Mode View */}
+            {(topMode === 'project-dev' || activeTab.startsWith('project-dev-')) && (
+              <motion.div
+                key="project-dev"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ProjectDevView
+                  items={appData.devProjects || []}
+                  onAddItem={(type) => {
+                    setDefaultDevType(type || 'Bug');
+                    setEditingDevItem(null);
+                    setIsDevModalOpen(true);
+                  }}
+                  onEditItem={(item) => {
+                    setEditingDevItem(item);
+                    setIsDevModalOpen(true);
+                  }}
+                  onDeleteItem={handleDeleteDevItem}
+                  onUpdateItem={handleSaveDevItem}
+                />
+              </motion.div>
+            )}
+
+            {/* Digital Product Mode View */}
+            {(topMode === 'digital-product' || activeTab.startsWith('digital-product-')) && (
+              <motion.div
+                key="digital-product"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DigitalProductView
+                  products={appData.digitalProducts || []}
+                  onAddProduct={() => {
+                    setEditingDigitalItem(null);
+                    setIsDigitalModalOpen(true);
+                  }}
+                  onEditProduct={(product) => {
+                    setEditingDigitalItem(product);
+                    setIsDigitalModalOpen(true);
+                  }}
+                  onDeleteProduct={handleDeleteDigitalProduct}
+                  onUpdateProduct={handleSaveDigitalProduct}
+                />
+              </motion.div>
+            )}
+
+            {/* Module 1: Database Gmail */}
+            {topMode === 'freelance' && activeTab === 'gmail' && (
             <motion.div
               key="gmail"
               initial={{ opacity: 0, y: 8 }}
@@ -740,10 +934,36 @@ export default function App() {
           </div>
         </div>
       </footer>
+      </div>
 
       {/* ==================================================== */}
       {/* ALL INTERACTIVE MODALS & DRAWERS */}
       {/* ==================================================== */}
+
+      {/* 0. Office Task Modal */}
+      <OfficeModal
+        isOpen={isOfficeModalOpen}
+        onClose={() => setIsOfficeModalOpen(false)}
+        onSave={handleSaveOfficeTask}
+        editingTask={editingOfficeTask}
+      />
+
+      {/* 0b. Project Dev Modal */}
+      <ProjectDevModal
+        isOpen={isDevModalOpen}
+        onClose={() => setIsDevModalOpen(false)}
+        onSave={handleSaveDevItem}
+        editingItem={editingDevItem}
+        defaultType={defaultDevType}
+      />
+
+      {/* 0c. Digital Product Modal */}
+      <DigitalProductModal
+        isOpen={isDigitalModalOpen}
+        onClose={() => setIsDigitalModalOpen(false)}
+        onSave={handleSaveDigitalProduct}
+        editingItem={editingDigitalItem}
+      />
 
       {/* 1. Gmail Modal */}
       <GmailModal

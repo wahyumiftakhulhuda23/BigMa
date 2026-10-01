@@ -17,6 +17,9 @@ export const initialStarterData: AppData = {
   deadlines: [],
   youtubeSchedules: [],
   microstockItems: [],
+  officeTasks: [],
+  devProjects: [],
+  digitalProducts: [],
 };
 
 // Optional sample data template for testing or demo reset
@@ -109,6 +112,9 @@ export function loadAppData(): AppData {
       deadlines: Array.isArray(parsed.deadlines) ? parsed.deadlines : [],
       youtubeSchedules: Array.isArray(parsed.youtubeSchedules) ? parsed.youtubeSchedules : [],
       microstockItems: Array.isArray(parsed.microstockItems) ? parsed.microstockItems : [],
+      officeTasks: Array.isArray(parsed.officeTasks) ? parsed.officeTasks : [],
+      devProjects: Array.isArray(parsed.devProjects) ? parsed.devProjects : [],
+      digitalProducts: Array.isArray(parsed.digitalProducts) ? parsed.digitalProducts : [],
     };
   } catch (err) {
     console.error('Error loading data from localStorage, using clean initial data:', err);

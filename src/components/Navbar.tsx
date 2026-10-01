@@ -385,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <Cloud className="w-3 h-3" />
                             <span>Sinkron Real-time Aktif</span>
                           </span>
-                          <span className="text-amber-400 font-mono">Kode: 2000</span>
+                          <span className="text-amber-400 font-mono">Status: Terproteksi</span>
                         </div>
                       </div>
 
@@ -399,7 +399,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-neutral-800 text-neutral-300 hover:text-amber-300 flex items-center gap-2.5 transition-colors cursor-pointer"
                         >
                           <Lock className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Kunci Brankas (PIN 2000 &amp; Benang)</span>
+                          <span>Kunci Brankas Security Gate</span>
                         </button>
                       )}
                     </motion.div>

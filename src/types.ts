@@ -114,6 +114,59 @@ export interface MicrostockItem {
   updatedAt: string;
 }
 
+export interface OfficeTask {
+  id: string;
+  title: string;
+  department?: string; // Keuangan, Administrasi, IT, SDM, Operasional, Umum
+  priority: 'Rendah' | 'Sedang' | 'Tinggi' | 'Mendesak';
+  status: 'Belum Mulai' | 'Sedang Dikerjakan' | 'Review' | 'Selesai';
+  dueDate: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
+  assignee?: string; // Penanggung Jawab / Rekan Kerja
+  category?: 'Pekerjaan Rutin' | 'Proyek Kantor' | 'Rapat / Meeting' | 'Laporan & Surat' | 'Pengingat Dinas' | 'Lainnya';
+  description?: string;
+  reminderActive?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DevItemType = 'Bug' | 'Ide' | 'Maintenance';
+
+export interface DevProjectItem {
+  id: string;
+  title: string;
+  type: DevItemType; // Bug, Ide, atau Maintenance
+  appName: string; // misal: BigMA Vault, POS Mobile, Web App Kasir, Landing Page, dll
+  severity: 'Kritis' | 'Tinggi' | 'Sedang' | 'Rendah';
+  status: 'Open' | 'Investigasi' | 'Dikerjakan' | 'Selesai' | 'Konsep' | 'Terjadwal';
+  scheduledDate?: string; // YYYY-MM-DD untuk maintenance / deadline perbaikan
+  scheduledTime?: string; // HH:mm
+  description?: string; // Penjelasan bug / konsep ide / langkah perbaikan
+  stackOrTech?: string; // React, TypeScript, Node.js, Tailwind, SQLite, Flutter, dll
+  stepsToReproduce?: string; // Khusus Bug
+  reminderActive?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DigitalProductItem {
+  id: string;
+  title: string; // Nama produk digital / konten
+  category: 'Template' | 'UI Kit' | 'E-Book' | 'Preset & LUT' | 'Bundle' | 'Video Course' | 'Audio/SFX' | 'Software/Script' | 'Lainnya';
+  platform: string; // Gumroad, Envato, Lemon Squeezy, Shopee, YouTube, Website Pribadi, dll
+  releaseDate: string; // YYYY-MM-DD
+  releaseTime?: string; // HH:mm
+  status: 'Ide / Konsep' | 'Produksi Bahan' | 'Siap Rilis' | 'Sudah Rilis';
+  pricing?: number;
+  currency?: 'IDR' | 'USD';
+  conceptNotes?: string; // Konsep & ide rilis
+  contentSchedule?: string; // Rencana jadwal konten (teaser, launch, post-launch)
+  promoChannel?: string; // Instagram Reels, TikTok, YouTube, Newsletter, dll
+  reminderActive?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppData {
   gmails: GmailAccount[];
   platformAccounts: PlatformAccount[];
@@ -123,8 +176,13 @@ export interface AppData {
   deadlines: ProjectDeadline[];
   youtubeSchedules: YoutubeScheduleItem[];
   microstockItems: MicrostockItem[];
+  officeTasks?: OfficeTask[];
+  devProjects?: DevProjectItem[];
+  digitalProducts?: DigitalProductItem[];
   settings: AppSettings;
 }
+
+export type TopMode = 'freelance' | 'office' | 'project-dev' | 'digital-product';
 
 export type ActiveTab = 
   | 'gmail' 
@@ -134,4 +192,14 @@ export type ActiveTab =
   | 'notes' 
   | 'finance' 
   | 'income' 
-  | 'calendar';
+  | 'calendar'
+  | 'office-jobs'
+  | 'office-notes'
+  | 'office-calendar'
+  | 'project-dev-all'
+  | 'project-dev-bugs'
+  | 'project-dev-ideas'
+  | 'project-dev-maintenance'
+  | 'digital-product-all'
+  | 'digital-product-calendar'
+  | 'digital-product-ideas';

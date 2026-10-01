@@ -83,7 +83,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
   const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
   const [statusState, setStatusState] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({
     type: 'idle',
-    message: 'Masukkan kode akses brankas (2000) dan hubungkan seluruh benang pengaman ke tanggal yang tepat.',
+    message: 'Masukkan kode akses brankas dan hubungkan seluruh benang pengaman ke tanggal yang tepat.',
   });
   const [isUnlocked, setIsUnlocked] = useState(false);
 
@@ -217,7 +217,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
     if (accessCode.trim() !== REQUIRED_ACCESS_CODE) {
       setStatusState({
         type: 'error',
-        message: 'Kode Akses Brankas tidak valid. Masukkan kode: 2000',
+        message: 'Kode Akses Brankas tidak valid.',
       });
       return;
     }
@@ -297,13 +297,13 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
                 </span>
               </h1>
               <p className="text-xs text-neutral-400">
-                Masukkan kode akses <b>2000</b> dan pasangkan 4 benang pengaman untuk membuka brankas cloud.
+                Masukkan kode akses rahasia dan pasangkan 4 benang pengaman untuk membuka brankas cloud.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Section 1: Kode Akses Keamanan (PIN: 2000) */}
+        {/* Section 1: Kode Akses Keamanan */}
         <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
@@ -311,7 +311,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
             </div>
             <div>
               <p className="text-xs font-bold text-white">1. Kode Akses Brankas</p>
-              <p className="text-[11px] text-neutral-400">Syarat kode masuk: <span className="font-mono text-amber-400 font-bold">2000</span></p>
+              <p className="text-[11px] text-neutral-400">Akses keamanan: <span className="font-mono text-amber-400 font-bold">Terproteksi Rahasia</span></p>
             </div>
           </div>
 
@@ -322,7 +322,7 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
               maxLength={10}
               value={accessCode}
               onChange={(e) => setAccessCode(e.target.value)}
-              placeholder="Ketik kode 2000..."
+              placeholder="Masukkan kode akses..."
               className="w-full sm:w-44 bg-neutral-900 border border-[#333] focus:border-amber-400 rounded-lg px-3 py-2 text-xs font-mono font-bold text-center tracking-widest text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
               id="security-gate-pin-input"
             />
