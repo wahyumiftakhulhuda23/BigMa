@@ -8,7 +8,7 @@ import {
   UserRole
 } from '../../types';
 import { detectScheduleStatus } from '../../utils/scheduleDateDetector';
-import { maskEmail } from '../../utils/maskUtils';
+import { maskEmail, maskIfEmail } from '../../utils/maskUtils';
 import { 
   PlaySquare, 
   Calendar, 
@@ -83,11 +83,57 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
   const [savedRows, setSavedRows] = useState<{ [platId: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Local state for PIC to allow smooth inline editing by Admin without cursor lag
+  const [picMap, setPicMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setPicMap(prev => {
+      const next: Record<string, string> = { ...prev };
+      platformAccounts.forEach(account => {
+        if (next[account.id] === undefined) {
+          next[account.id] = account.pic || '';
+        } else if (account.pic && (prev[account.id] === '' || prev[account.id] === undefined)) {
+          next[account.id] = account.pic;
+        }
+      });
+      return next;
+    });
+  }, [platformAccounts]);
+
+  const handlePicChange = (account: PlatformAccount, newPic: string) => {
+    setPicMap(prev => ({ ...prev, [account.id]: newPic }));
+  };
+
+  const handlePicBlur = (account: PlatformAccount) => {
+    const currentVal = (picMap[account.id] ?? account.pic ?? '').trim();
+    if (currentVal !== (account.pic || '')) {
+      onUpdateAccount?.({ ...account, pic: currentVal });
+    }
+  };
+
+  const handleToggleVisibility = (account: PlatformAccount) => {
+    const isCurrentlyVisible = account.isVisible !== false;
+    const nextVis = !isCurrentlyVisible;
+    onUpdateAccount?.({ ...account, isVisible: nextVis });
+  };
+
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'none'>('all');
   const [monetFilter, setMonetFilter] = useState<'all' | MonetizationStatus>('all');
+  const [picFilter, setPicFilter] = useState<string>('all');
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'visible' | 'hidden'>('all');
   const [sortBy, setSortBy] = useState<'default' | 'date-asc' | 'date-desc' | 'draft-desc' | 'siap-desc'>('default');
+
+  // Extract all distinct PICs available in current accounts
+  const availablePics = useMemo(() => {
+    const pics = new Set<string>();
+    youtubeAccounts.forEach(acc => {
+      const p = (acc.pic || '').trim();
+      if (p) pics.add(p);
+    });
+    return Array.from(pics).sort((a, b) => a.localeCompare(b));
+  }, [youtubeAccounts]);
 
   // Synchronize schedules into local row states
   useEffect(() => {
@@ -144,35 +190,43 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
     setSavedRows(prev => ({ ...prev, [platId]: false }));
   };
 
-  // Quick date helper for row (e.g. today, +1, +3, +7)
-  const handleQuickDate = (platId: string, daysOffset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + daysOffset);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const isoDate = `${yyyy}-${mm}-${dd}`;
-    handleFieldChange(platId, 'jadwal', isoDate);
-  };
 
-  // Save single row to cloud storage
+  // Save single row to cloud storage (persisting both schedule and PIC)
   const handleSaveRow = (platId: string) => {
     const item = rowStates[platId];
-    if (!item) return;
-    onSaveSchedule(item);
+    if (item) {
+      onSaveSchedule(item);
+    }
+    // Also persist PIC if updated
+    const account = platformAccounts.find(a => a.id === platId);
+    if (account && onUpdateAccount) {
+      const currentPic = (picMap[platId] ?? account.pic ?? '').trim();
+      if (currentPic !== (account.pic || '')) {
+        onUpdateAccount({ ...account, pic: currentPic });
+      }
+    }
     setSavedRows(prev => ({ ...prev, [platId]: true }));
     setTimeout(() => {
       setSavedRows(prev => ({ ...prev, [platId]: false }));
     }, 2500);
   };
 
-  // Save all modified rows
+  // Save all modified rows & PICs
   const handleSaveAll = () => {
     const allItems: YoutubeScheduleItem[] = Object.values(rowStates);
     if (onSaveAllSchedules) {
       onSaveAllSchedules(allItems);
     } else {
       allItems.forEach(item => onSaveSchedule(item));
+    }
+    // Persist all modified PICs
+    if (onUpdateAccount) {
+      platformAccounts.forEach(account => {
+        const currentPic = (picMap[account.id] ?? account.pic ?? '').trim();
+        if (currentPic !== (account.pic || '')) {
+          onUpdateAccount({ ...account, pic: currentPic });
+        }
+      });
     }
     const newSaved: { [platId: string]: boolean } = {};
     allItems.forEach(i => {
@@ -251,6 +305,23 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
         if (currentMonet !== monetFilter) return false;
       }
 
+      // PIC Filter (available in both Admin and Guest modes)
+      if (picFilter !== 'all') {
+        const currentPic = (account.pic || '').trim().toLowerCase();
+        if (picFilter === 'none') {
+          if (currentPic !== '') return false;
+        } else if (currentPic !== picFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // Visibility Filter (Admin only)
+      if (userRole !== 'guest' && visibilityFilter !== 'all') {
+        const isVis = account.isVisible !== false;
+        if (visibilityFilter === 'visible' && !isVis) return false;
+        if (visibilityFilter === 'hidden' && isVis) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const rowA = rowStates[a.id];
@@ -273,43 +344,44 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
       }
       return 0;
     });
-  }, [youtubeAccounts, rowStates, gmailMap, searchQuery, statusFilter, monetFilter, sortBy]);
+  }, [youtubeAccounts, rowStates, gmailMap, searchQuery, statusFilter, monetFilter, picFilter, visibilityFilter, sortBy, userRole]);
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner - Highlight Menu Styling */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-950/40 via-neutral-900/90 to-amber-950/30 border border-red-500/30 p-5 sm:p-6 shadow-xl backdrop-blur-sm">
-        <div className="absolute -right-8 -top-8 w-40 h-40 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-mono font-bold tracking-wider uppercase">
-                <Flame className="w-3.5 h-3.5 text-red-400 fill-red-400" />
-                Menu Highlight #1
-              </span>
-              <span className="text-xs font-mono text-neutral-400">
-                &bull; Penjadwalan &amp; Produksi Konten YouTube
-              </span>
+    <div className="space-y-4">
+      {/* Header Banner - Clean, Minimal & High Efficiency */}
+      <div className="rounded-2xl bg-gradient-to-r from-neutral-900 via-neutral-900 to-red-950/30 border border-neutral-800 p-4 sm:p-5 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500 shadow-inner">
+              <PlaySquare className="w-5 h-5" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-sans font-black text-white tracking-tight flex items-center gap-3">
-              <PlaySquare className="w-8 h-8 text-red-500" />
-              <span>Penjadwalan YouTube</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-neutral-300 mt-1 max-w-2xl leading-relaxed">
-              Tabel operasional terintegrasi <strong className="text-white">Master Gmail</strong> &amp; <strong className="text-white">Kelola Akun YouTube</strong>. Dilengkapi deteksi otomatis tanggal, peringatan jadwal terlewat, dan penyimpanan per baris.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl sm:text-2xl font-sans font-black text-white tracking-tight">
+                  Penjadwalan YouTube
+                </h2>
+                {userRole === 'guest' && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold">
+                    Mode Guest
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Kelola jadwal upload, stok draft, status monetisasi, dan penanggung jawab (PIC).
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleSaveAll}
-              className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-[#333] hover:border-neutral-500 text-xs font-sans font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 hover:border-neutral-500 text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
               id="yt-save-all-btn"
               title="Simpan seluruh baris ke Cloud"
             >
-              <Save className="w-4 h-4 text-emerald-400" />
+              <Save className="w-3.5 h-3.5 text-emerald-400" />
               <span>Simpan Semua</span>
             </motion.button>
 
@@ -318,108 +390,122 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onAddYoutubeAccount}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-red-900/30 transition-all cursor-pointer ring-1 ring-red-400/40"
+                className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-red-900/30 transition-all cursor-pointer"
                 id="yt-add-channel-btn"
               >
                 <Plus className="w-4 h-4" />
-                <span>Tambah Channel YouTube</span>
+                <span>Tambah Channel</span>
               </motion.button>
-            )}
-
-            {userRole === 'guest' && (
-              <div className="px-3 py-2 rounded-xl bg-neutral-950/80 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 shadow-inner">
-                <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Mode Guest (Operator)</span>
-              </div>
             )}
           </div>
         </div>
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-5 border-t border-white/10">
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Total Channel</span>
-            <span className="text-xl font-mono font-black text-white mt-0.5 block">{metrics.totalChannels} Akun</span>
+        {/* Metrics Row - Compact & Informative */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-4 pt-3.5 border-t border-neutral-800/80">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Channel</span>
+            <span className="text-lg font-mono font-black text-white mt-0.5 block">{metrics.totalChannels}</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Siap Upload</span>
-            <span className="text-xl font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1.5">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Siap Upload</span>
+            <span className="text-lg font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalSiap}</span>
-              <span className="text-xs font-normal text-emerald-500/80">Video</span>
+              <span className="text-[10px] font-normal text-emerald-500/80">Video</span>
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Draft Konten</span>
-            <span className="text-xl font-mono font-black text-sky-400 mt-0.5 block flex items-center gap-1.5">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Draft Konten</span>
+            <span className="text-lg font-mono font-black text-sky-400 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalDraft}</span>
-              <span className="text-xs font-normal text-sky-500/80">Draft</span>
+              <span className="text-[10px] font-normal text-sky-500/80">Draft</span>
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Total Bahan</span>
-            <span className="text-xl font-mono font-black text-purple-400 mt-0.5 block">{metrics.totalBahan} Item</span>
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Bahan</span>
+            <span className="text-lg font-mono font-black text-purple-400 mt-0.5 block">{metrics.totalBahan}</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Peringatan Jadwal</span>
-            <span className={`text-xl font-mono font-black mt-0.5 block ${metrics.overdueCount > 0 ? 'text-rose-400' : 'text-neutral-400'}`}>
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Peringatan Jadwal</span>
+            <span className={`text-lg font-mono font-black mt-0.5 block ${metrics.overdueCount > 0 ? 'text-rose-400' : 'text-neutral-400'}`}>
               {metrics.overdueCount} Terlewat
-              {metrics.todayCount > 0 && <span className="text-xs text-amber-400 ml-1.5">({metrics.todayCount} Hari Ini)</span>}
+              {metrics.todayCount > 0 && <span className="text-[10px] text-amber-400 ml-1">({metrics.todayCount} Hari Ini)</span>}
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Monetisasi (Ya)</span>
-            <span className="text-xl font-mono font-black text-amber-400 mt-0.5 block">{metrics.monetCount} Channel</span>
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Monetisasi (Ya)</span>
+            <span className="text-lg font-mono font-black text-amber-400 mt-0.5 block">{metrics.monetCount} Channel</span>
           </div>
         </div>
       </div>
 
-      {/* Guest Mode Informational Banner */}
-      {userRole === 'guest' && (
-        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-200 shadow-sm">
-          <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
-          <p className="flex-1 leading-relaxed">
-            <strong>Mode Guest (Operator YouTube):</strong> Anda dapat mengedit &amp; menyimpan <strong>Jadwal Upload &amp; Status, Draft, Siap Upload, Monet, Jumlah Bahan, Keterangan, dan Aksi Simpan</strong>. Kredensial akun (password/2FA) terproteksi dan alamat Gmail disamarkan (<span className="text-amber-300 font-mono font-bold">******</span>).
-          </p>
-          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30 whitespace-nowrap">
-            Guest Operator
-          </span>
-        </div>
-      )}
-
-      {/* Control Bar: Search & Filters */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-950/80 border border-[#262626]">
+      {/* Control Bar: Search & Compact Filters */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 p-3 rounded-xl bg-neutral-950/90 border border-neutral-800">
         {/* Search */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari channel, handle, email master Gmail, atau catatan..."
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg bg-neutral-900 border border-[#333] text-white placeholder-neutral-500 focus:outline-none focus:border-red-500"
+            placeholder="Cari channel, handle, email master..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 focus:outline-none focus:border-red-500"
             id="yt-search-input"
           />
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+        {/* Filter Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-wrap">
+          {/* PIC Filter - BOTH ADMIN & GUEST */}
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">PIC:</span>
+            <select
+              value={picFilter}
+              onChange={(e) => setPicFilter(e.target.value)}
+              className="bg-transparent text-xs text-amber-300 font-semibold focus:outline-none cursor-pointer pr-1"
+              id="yt-filter-pic-select"
+            >
+              <option value="all" className="bg-neutral-900 text-white">Semua PIC</option>
+              <option value="none" className="bg-neutral-900 text-neutral-400">Belum Diatur</option>
+              {availablePics.map(pic => (
+                <option key={pic} value={pic} className="bg-neutral-900 text-amber-300">{pic}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Visibility Filter - ADMIN ONLY */}
+          {userRole !== 'guest' && (
+            <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Visibilitas:</span>
+              <select
+                value={visibilityFilter}
+                onChange={(e) => setVisibilityFilter(e.target.value as any)}
+                className="bg-transparent text-xs text-emerald-300 font-semibold focus:outline-none cursor-pointer pr-1"
+                id="yt-filter-vis-select"
+              >
+                <option value="all" className="bg-neutral-900 text-white">Semua</option>
+                <option value="visible" className="bg-neutral-900 text-emerald-400">Ditampilkan</option>
+                <option value="hidden" className="bg-neutral-900 text-neutral-400">Disembunyikan</option>
+              </select>
+            </div>
+          )}
+
           {/* Status Filter */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-[#333] text-xs">
-            <span className="text-[10px] font-bold text-neutral-400 px-2 uppercase tracking-wider">Jadwal:</span>
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Jadwal:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="bg-transparent text-xs text-neutral-200 focus:outline-none cursor-pointer pr-1"
               id="yt-filter-status-select"
             >
-              <option value="all" className="bg-neutral-900 text-white">Semua Jadwal</option>
+              <option value="all" className="bg-neutral-900 text-white">Semua</option>
               <option value="overdue" className="bg-neutral-900 text-rose-400">⚠️ Terlewat</option>
-              <option value="today" className="bg-neutral-900 text-amber-300">⚡ Terakhir Hari Ini</option>
+              <option value="today" className="bg-neutral-900 text-amber-300">⚡ Hari Ini</option>
               <option value="tomorrow" className="bg-neutral-900 text-sky-400">⏰ Besok</option>
               <option value="upcoming" className="bg-neutral-900 text-emerald-400">📅 Akan Datang</option>
               <option value="none" className="bg-neutral-900 text-neutral-400">Belum Diatur</option>
@@ -427,8 +513,8 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
           </div>
 
           {/* Monet Filter */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-[#333] text-xs">
-            <span className="text-[10px] font-bold text-neutral-400 px-2 uppercase tracking-wider">Monet:</span>
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Monet:</span>
             <select
               value={monetFilter}
               onChange={(e) => setMonetFilter(e.target.value as any)}
@@ -436,22 +522,22 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
               id="yt-filter-monet-select"
             >
               <option value="all" className="bg-neutral-900 text-white">Semua</option>
-              <option value="Ya" className="bg-neutral-900 text-emerald-400">Monet: Ya</option>
-              <option value="Hampir" className="bg-neutral-900 text-amber-400">Monet: Hampir</option>
-              <option value="Tidak" className="bg-neutral-900 text-neutral-400">Monet: Tidak</option>
+              <option value="Ya" className="bg-neutral-900 text-emerald-400">Ya</option>
+              <option value="Hampir" className="bg-neutral-900 text-amber-400">Hampir</option>
+              <option value="Tidak" className="bg-neutral-900 text-neutral-400">Tidak</option>
             </select>
           </div>
 
           {/* Sort By */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-[#333] text-xs">
-            <ArrowUpDown className="w-3.5 h-3.5 text-neutral-400 ml-1.5" />
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <ArrowUpDown className="w-3 h-3 text-neutral-400 ml-0.5" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="bg-transparent text-xs text-neutral-200 focus:outline-none cursor-pointer pr-1"
               id="yt-sort-select"
             >
-              <option value="default" className="bg-neutral-900 text-white">Urutan Default</option>
+              <option value="default" className="bg-neutral-900 text-white">Default</option>
               <option value="date-asc" className="bg-neutral-900 text-white">Jadwal Terdekat</option>
               <option value="date-desc" className="bg-neutral-900 text-white">Jadwal Terjauh</option>
               <option value="siap-desc" className="bg-neutral-900 text-white">Siap Upload Terbanyak</option>
@@ -460,6 +546,7 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
           </div>
         </div>
       </div>
+
 
       {/* Main Table: Editable Per-Row with Rich Date Detection & Badges */}
       <div className="rounded-xl border border-[#262626] bg-[#0E0E0E] shadow-2xl overflow-hidden">
@@ -535,40 +622,18 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                     >
                       {/* Column 1: Channel Info & Master Gmail */}
                       <td className="py-3.5 px-4 align-top">
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <div className="flex items-start justify-between gap-1.5">
-                            <div>
+                            <div className="min-w-0">
                               <p className="font-sans font-black text-sm text-white hover:text-red-400 transition-colors flex items-center gap-1.5">
                                 <PlaySquare className="w-3.5 h-3.5 text-red-500 shrink-0" />
                                 <span className="truncate max-w-[170px]" title={account.accountName}>
-                                  {account.accountName}
+                                  {maskIfEmail(account.accountName, userRole === 'guest')}
                                 </span>
                               </p>
-                              {/* PIC & Visibility - Inline Edit */}
-                              {userRole !== 'guest' ? (
-                                <div className="space-y-1 mt-1">
-                                  <input
-                                    type="text"
-                                    defaultValue={account.pic || ''}
-                                    placeholder="Input PIC..."
-                                    onBlur={(e) => onUpdateAccount?.({ ...account, pic: e.target.value })}
-                                    className="w-full text-[10px] bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-amber-400 focus:border-amber-500"
-                                  />
-                                  <button
-                                    onClick={() => onUpdateAccount?.({ ...account, isVisible: account.isVisible === false ? true : false })}
-                                    className={`flex items-center gap-1 text-[10px] font-bold ${account.isVisible !== false ? 'text-emerald-400' : 'text-neutral-500'}`}
-                                  >
-                                    {account.isVisible !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                                    {account.isVisible !== false ? 'Tampil' : 'Sembunyi'}
-                                  </button>
-                                </div>
-                              ) : (
-                                account.pic && (
-                                  <p className="text-[10px] text-amber-400 font-bold mt-0.5">PIC: {account.pic}</p>
-                                )
-                              )}
-                              <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1">
-                                <span>{account.usernameOrHandle || '@channel'}</span>
+
+                              <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1 mt-0.5">
+                                <span>{maskIfEmail(account.usernameOrHandle, userRole === 'guest') || '@channel'}</span>
                                 {account.channelOrProfileUrl && (
                                   <a
                                     href={account.channelOrProfileUrl}
@@ -582,17 +647,88 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                                 )}
                               </p>
                             </div>
-                            {onEditPlatformAccount && userRole !== 'guest' && (
-                              <button
-                                type="button"
-                                onClick={() => onEditPlatformAccount(account)}
-                                className="p-1 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
-                                title="Edit Detail Kredensial Akun"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                              </button>
+
+                            {/* Visibility Toggle Icon & Edit - ADMIN ONLY */}
+                            {userRole !== 'guest' && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleVisibility(account)}
+                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                    account.isVisible !== false
+                                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                      : 'bg-neutral-900 border-neutral-700 text-neutral-500 hover:bg-neutral-800'
+                                  }`}
+                                  title={
+                                    account.isVisible !== false
+                                      ? 'Ditampilkan di Guest (Klik icon mata untuk menyembunyikan)'
+                                      : 'Disembunyikan dari Guest (Klik icon mata untuk menampilkan)'
+                                  }
+                                  id={`yt-vis-btn-${platId}`}
+                                >
+                                  {account.isVisible !== false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                </button>
+                                {onEditPlatformAccount && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPlatformAccount(account)}
+                                    className="p-1.5 rounded-lg border border-[#333] text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                                    title="Edit Kredensial Lengkap"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
+
+                          {/* Visibility Pill Badge - ADMIN ONLY */}
+                          {userRole !== 'guest' && (
+                            <div>
+                              {account.isVisible !== false ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                  <Eye className="w-2.5 h-2.5" />
+                                  <span>Tampil di Guest</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-neutral-900 text-neutral-400 border border-neutral-700">
+                                  <EyeOff className="w-2.5 h-2.5" />
+                                  <span>Disembunyikan dari Guest</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* PIC (Penanggung Jawab) - EDITABLE FOR ADMIN, READONLY FOR GUEST */}
+                          {userRole !== 'guest' ? (
+                            <div className="flex items-center gap-1.5 p-1 rounded-md bg-neutral-950 border border-neutral-800">
+                              <span className="text-[9px] font-mono font-bold text-amber-400 px-1 uppercase tracking-wider shrink-0">
+                                PIC:
+                              </span>
+                              <input
+                                type="text"
+                                value={picMap[platId] ?? account.pic ?? ''}
+                                placeholder="Isi PIC (cth: Wahyu)..."
+                                onChange={(e) => handlePicChange(account, e.target.value)}
+                                onBlur={() => handlePicBlur(account)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-full text-xs font-semibold bg-transparent text-amber-300 placeholder-neutral-600 focus:outline-none"
+                                title="Ketik nama PIC lalu tekan Enter atau klik di luar untuk menyimpan"
+                                id={`yt-pic-input-${platId}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase">PIC:</span>
+                              <span className="text-xs font-bold text-amber-400">
+                                {account.pic ? account.pic : <span className="text-neutral-500 italic font-normal">Belum diatur</span>}
+                              </span>
+                            </div>
+                          )}
 
                           {/* Master Gmail Link Badge */}
                           {(() => {
@@ -601,16 +737,16 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                             const displayEmail = isMasked ? maskEmail(rawEmail) : (rawEmail || 'Tidak ada Gmail');
                             return (
                               <div className="inline-flex items-center gap-1.5 px-2 py-0.8 rounded-md bg-neutral-950 border border-[#2a2a2a] text-[10px] text-neutral-300 font-mono">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                <span className="truncate max-w-[140px]" title={isMasked ? 'Gmail disamarkan untuk keamanan (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isMasked ? 'bg-amber-400' : 'bg-red-400'}`} />
+                                <span className="truncate max-w-[140px]" title={isMasked ? 'Akun Gmail Terproteksi (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
                                   {displayEmail}
                                 </span>
-                                {rawEmail && (
+                                {!isMasked && rawEmail && (
                                   <button
                                     type="button"
                                     onClick={() => handleCopyEmail(displayEmail, `gm_${platId}`)}
                                     className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
-                                    title={isMasked ? 'Salin Email Disamarkan' : 'Salin Email Master'}
+                                    title="Salin Email Master"
                                   >
                                     {copiedId === `gm_${platId}` ? (
                                       <Check className="w-3 h-3 text-emerald-400" />
@@ -628,53 +764,16 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                       {/* Column 2: Jadwal (Input Date / Text + Auto Detection & Color Status) */}
                       <td className="py-3.5 px-4 align-top">
                         <div className="space-y-2">
-                          {/* Main Date Input with Native Picker and Text Support */}
-                          <div className="flex items-center gap-1.5">
-                            <div className="relative flex-1">
-                              <input
-                                type="date"
-                                value={scheduleStatus.isValid ? scheduleStatus.dateStr : (row.jadwal || '')}
-                                onChange={(e) => handleFieldChange(platId, 'jadwal', e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-mono rounded-lg bg-neutral-950 border border-[#333] text-neutral-200 focus:outline-none focus:border-red-500 transition-colors"
-                                id={`yt-date-input-${platId}`}
-                              />
-                            </div>
-
-                            {/* Quick Day Helper Buttons */}
-                            <div className="flex items-center gap-0.5">
-                              <button
-                                type="button"
-                                onClick={() => handleQuickDate(platId, 0)}
-                                className="px-1.5 py-1 text-[10px] font-mono font-bold rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-[#333] hover:border-amber-500/50"
-                                title="Set Hari Ini"
-                              >
-                                H.Ini
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickDate(platId, 1)}
-                                className="px-1.5 py-1 text-[10px] font-mono font-bold rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-[#333] hover:border-sky-500/50"
-                                title="Set Besok (+1 Hari)"
-                              >
-                                +1
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickDate(platId, 3)}
-                                className="px-1.5 py-1 text-[10px] font-mono font-bold rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-[#333] hover:border-emerald-500/50"
-                                title="Set +3 Hari"
-                              >
-                                +3
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickDate(platId, 7)}
-                                className="px-1.5 py-1 text-[10px] font-mono font-bold rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-[#333] hover:border-emerald-500/50"
-                                title="Set +7 Hari (1 Minggu)"
-                              >
-                                +7
-                              </button>
-                            </div>
+                          {/* Main Date Input with Native Picker */}
+                          <div className="relative">
+                            <input
+                              type="date"
+                              value={scheduleStatus.isValid ? scheduleStatus.dateStr : (row.jadwal || '')}
+                              onChange={(e) => handleFieldChange(platId, 'jadwal', e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs font-mono rounded-lg bg-neutral-950 border border-[#333] text-neutral-200 focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
+                              id={`yt-date-input-${platId}`}
+                              title="Pilih tanggal jadwal upload"
+                            />
                           </div>
 
                           {/* Automatic Status Pill & Subtext */}
@@ -780,30 +879,52 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
 
                       {/* Column 8: Aksi / Simpan Perbaris */}
                       <td className="py-3.5 px-3 align-top text-center">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleSaveRow(platId)}
-                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-sans font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            isSaved
-                              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/40'
-                              : 'bg-red-600/90 hover:bg-red-500 text-white shadow-sm shadow-red-900/20'
-                          }`}
-                          id={`yt-save-row-btn-${platId}`}
-                          title="Simpan baris ini ke cloud"
-                        >
-                          {isSaved ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Tersimpan</span>
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-3.5 h-3.5" />
-                              <span>Simpan</span>
-                            </>
+                        <div className="space-y-1.5">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleSaveRow(platId)}
+                            className={`w-full py-1.5 px-3 rounded-lg text-xs font-sans font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              isSaved
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/40'
+                                : 'bg-red-600/90 hover:bg-red-500 text-white shadow-sm shadow-red-900/20'
+                            }`}
+                            id={`yt-save-row-btn-${platId}`}
+                            title="Simpan baris ini ke cloud"
+                          >
+                            {isSaved ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Tersimpan</span>
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-3.5 h-3.5" />
+                                <span>Simpan</span>
+                              </>
+                            )}
+                          </motion.button>
+
+                          {userRole !== 'guest' && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVisibility(account)}
+                              className={`w-full py-1 px-1.5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
+                                account.isVisible !== false
+                                  ? 'bg-neutral-900 border-emerald-500/30 text-emerald-400 hover:bg-emerald-950/40'
+                                  : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-white'
+                              }`}
+                              title={
+                                account.isVisible !== false
+                                  ? 'Ditampilkan di Guest (Klik untuk sembunyikan)'
+                                  : 'Disembunyikan dari Guest (Klik untuk tampilkan)'
+                              }
+                            >
+                              {account.isVisible !== false ? <Eye className="w-3 h-3 text-emerald-400" /> : <EyeOff className="w-3 h-3 text-neutral-500" />}
+                              <span>{account.isVisible !== false ? 'Tampil' : 'Sembunyi'}</span>
+                            </button>
                           )}
-                        </motion.button>
+                        </div>
                         <span className="block text-[9px] text-neutral-500 mt-1 font-mono">
                           per baris
                         </span>

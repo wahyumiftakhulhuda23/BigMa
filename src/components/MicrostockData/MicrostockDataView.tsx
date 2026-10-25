@@ -6,7 +6,7 @@ import {
   MicrostockItem,
   UserRole
 } from '../../types';
-import { maskEmail } from '../../utils/maskUtils';
+import { maskEmail, maskIfEmail } from '../../utils/maskUtils';
 import { 
   Layers, 
   Save, 
@@ -88,10 +88,56 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
   const [savedRows, setSavedRows] = useState<{ [platId: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Local state for PIC to allow smooth inline editing by Admin without cursor lag
+  const [picMap, setPicMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setPicMap(prev => {
+      const next: Record<string, string> = { ...prev };
+      platformAccounts.forEach(account => {
+        if (next[account.id] === undefined) {
+          next[account.id] = account.pic || '';
+        } else if (account.pic && (prev[account.id] === '' || prev[account.id] === undefined)) {
+          next[account.id] = account.pic;
+        }
+      });
+      return next;
+    });
+  }, [platformAccounts]);
+
+  const handlePicChange = (account: PlatformAccount, newPic: string) => {
+    setPicMap(prev => ({ ...prev, [account.id]: newPic }));
+  };
+
+  const handlePicBlur = (account: PlatformAccount) => {
+    const currentVal = (picMap[account.id] ?? account.pic ?? '').trim();
+    if (currentVal !== (account.pic || '')) {
+      onUpdateAccount?.({ ...account, pic: currentVal });
+    }
+  };
+
+  const handleToggleVisibility = (account: PlatformAccount) => {
+    const isCurrentlyVisible = account.isVisible !== false;
+    const nextVis = !isCurrentlyVisible;
+    onUpdateAccount?.({ ...account, isVisible: nextVis });
+  };
+
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [picFilter, setPicFilter] = useState<string>('all');
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'visible' | 'hidden'>('all');
   const [sortBy, setSortBy] = useState<'default' | 'item-desc' | 'new-desc' | 'reject-desc'>('default');
+
+  // Extract all distinct PICs available in microstock accounts
+  const availablePics = useMemo(() => {
+    const pics = new Set<string>();
+    microstockAccounts.forEach(acc => {
+      const p = (acc.pic || '').trim();
+      if (p) pics.add(p);
+    });
+    return Array.from(pics).sort((a, b) => a.localeCompare(b));
+  }, [microstockAccounts]);
 
   // Synchronize microstock items into local row states
   useEffect(() => {
@@ -143,24 +189,42 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
     setSavedRows(prev => ({ ...prev, [platId]: false }));
   };
 
-  // Save single row
+  // Save single row (persisting both microstock item and PIC)
   const handleSaveRow = (platId: string) => {
     const item = rowStates[platId];
-    if (!item) return;
-    onSaveMicrostockItem(item);
+    if (item) {
+      onSaveMicrostockItem(item);
+    }
+    // Also persist PIC if updated
+    const account = platformAccounts.find(a => a.id === platId);
+    if (account && onUpdateAccount) {
+      const currentPic = (picMap[platId] ?? account.pic ?? '').trim();
+      if (currentPic !== (account.pic || '')) {
+        onUpdateAccount({ ...account, pic: currentPic });
+      }
+    }
     setSavedRows(prev => ({ ...prev, [platId]: true }));
     setTimeout(() => {
       setSavedRows(prev => ({ ...prev, [platId]: false }));
     }, 2500);
   };
 
-  // Save all rows
+  // Save all rows & PICs
   const handleSaveAll = () => {
     const allItems: MicrostockItem[] = Object.values(rowStates);
     if (onSaveAllMicrostockItems) {
       onSaveAllMicrostockItems(allItems);
     } else {
       allItems.forEach(item => onSaveMicrostockItem(item));
+    }
+    // Persist all modified PICs
+    if (onUpdateAccount) {
+      platformAccounts.forEach(account => {
+        const currentPic = (picMap[account.id] ?? account.pic ?? '').trim();
+        if (currentPic !== (account.pic || '')) {
+          onUpdateAccount({ ...account, pic: currentPic });
+        }
+      });
     }
     const newSaved: { [platId: string]: boolean } = {};
     allItems.forEach(i => {
@@ -267,6 +331,23 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
         if (account.platform !== platformFilter) return false;
       }
 
+      // PIC Filter (available in both Admin and Guest modes)
+      if (picFilter !== 'all') {
+        const currentPic = (account.pic || '').trim().toLowerCase();
+        if (picFilter === 'none') {
+          if (currentPic !== '') return false;
+        } else if (currentPic !== picFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // Visibility Filter (Admin only)
+      if (userRole !== 'guest' && visibilityFilter !== 'all') {
+        const isVis = account.isVisible !== false;
+        if (visibilityFilter === 'visible' && !isVis) return false;
+        if (visibilityFilter === 'hidden' && isVis) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const rowA = rowStates[a.id];
@@ -282,43 +363,44 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
       }
       return 0;
     });
-  }, [microstockAccounts, rowStates, gmailMap, searchQuery, platformFilter, sortBy]);
+  }, [microstockAccounts, rowStates, gmailMap, searchQuery, platformFilter, picFilter, visibilityFilter, sortBy, userRole]);
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner - Highlight Menu #2 */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-950/40 via-neutral-900/90 to-blue-950/30 border border-indigo-500/30 p-5 sm:p-6 shadow-xl backdrop-blur-sm">
-        <div className="absolute -right-8 -top-8 w-40 h-40 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-mono font-bold tracking-wider uppercase">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                Menu Highlight #2
-              </span>
-              <span className="text-xs font-mono text-neutral-400">
-                &bull; Portofolio &amp; Produksi Microstock Agency
-              </span>
+    <div className="space-y-4">
+      {/* Header Banner - Clean, Minimal & High Efficiency */}
+      <div className="rounded-2xl bg-gradient-to-r from-neutral-900 via-neutral-900 to-indigo-950/30 border border-neutral-800 p-4 sm:p-5 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
+              <ImageIcon className="w-5 h-5" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-sans font-black text-white tracking-tight flex items-center gap-3">
-              <ImageIcon className="w-8 h-8 text-indigo-400" />
-              <span>Data Microstock</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-neutral-300 mt-1 max-w-2xl leading-relaxed">
-              Tabel terintegrasi <strong className="text-white">Master Gmail</strong> dan <strong className="text-white">Kelola Akun Microstock</strong> (Adobe Stock, Shutterstock, Freepik, Vecteezy, dll). Pantau jumlah item portofolio, new submission, tingkat reject, dan konsentrasi tema akun.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl sm:text-2xl font-sans font-black text-white tracking-tight">
+                  Data Microstock
+                </h2>
+                {userRole === 'guest' && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold">
+                    Mode Guest
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Pantau total item, new submissions, reject rate, tema akun, dan penanggung jawab (PIC).
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleSaveAll}
-              className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-[#333] hover:border-neutral-500 text-xs font-sans font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 hover:border-neutral-500 text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
               id="ms-save-all-btn"
               title="Simpan seluruh baris ke Cloud"
             >
-              <Save className="w-4 h-4 text-emerald-400" />
+              <Save className="w-3.5 h-3.5 text-emerald-400" />
               <span>Simpan Semua</span>
             </motion.button>
 
@@ -327,104 +409,118 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onAddMicrostockAccount('Adobe Stock')}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-indigo-900/30 transition-all cursor-pointer ring-1 ring-indigo-400/40"
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-900/30 transition-all cursor-pointer"
                 id="ms-add-account-btn"
               >
                 <Plus className="w-4 h-4" />
-                <span>Tambah Akun Microstock</span>
+                <span>Tambah Akun Stock</span>
               </motion.button>
-            )}
-
-            {userRole === 'guest' && (
-              <div className="px-3 py-2 rounded-xl bg-neutral-950/80 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 shadow-inner">
-                <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Mode Guest (Operator)</span>
-              </div>
             )}
           </div>
         </div>
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-5 border-t border-white/10">
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Total Akun Stock</span>
-            <span className="text-xl font-mono font-black text-white mt-0.5 block">{metrics.totalAccounts} Akun</span>
+        {/* Metrics Row - Compact & Crisp */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4 pt-3.5 border-t border-neutral-800/80">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Akun Stock</span>
+            <span className="text-lg font-mono font-black text-white mt-0.5 block">{metrics.totalAccounts}</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Total Item Online</span>
-            <span className="text-xl font-mono font-black text-indigo-300 mt-0.5 block flex items-center gap-1.5">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Item Online</span>
+            <span className="text-lg font-mono font-black text-indigo-300 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalItems.toLocaleString()}</span>
-              <span className="text-xs font-normal text-indigo-400/80">Item</span>
+              <span className="text-[10px] font-normal text-indigo-400/80">Item</span>
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">New / Pending</span>
-            <span className="text-xl font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1.5">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">New / Pending</span>
+            <span className="text-lg font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalNew.toLocaleString()}</span>
-              <span className="text-xs font-normal text-emerald-400/80">Baru</span>
+              <span className="text-[10px] font-normal text-emerald-400/80">Baru</span>
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Total Reject</span>
-            <span className="text-xl font-mono font-black text-rose-400 mt-0.5 block flex items-center gap-1.5">
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Reject</span>
+            <span className="text-lg font-mono font-black text-rose-400 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalReject.toLocaleString()}</span>
-              <span className="text-xs font-normal text-rose-400/80">Ditolak</span>
+              <span className="text-[10px] font-normal text-rose-400/80">Ditolak</span>
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-neutral-950/60 border border-neutral-800/80">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">Acceptance Rate</span>
-            <span className="text-xl font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Acceptance Rate</span>
+            <span className="text-lg font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               <span>{metrics.acceptRate}%</span>
             </span>
           </div>
         </div>
       </div>
 
-      {/* Guest Mode Informational Banner */}
-      {userRole === 'guest' && (
-        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-200 shadow-sm">
-          <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
-          <p className="flex-1 leading-relaxed">
-            <strong>Mode Guest (Operator Microstock):</strong> Anda dapat mengedit &amp; menyimpan <strong>Jumlah Item, New, Reject, Konsentrasi Akun, dan Aksi Simpan</strong>. Kredensial akun (password/2FA) terproteksi dan alamat Gmail disamarkan (<span className="text-amber-300 font-mono font-bold">******</span>).
-          </p>
-          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30 whitespace-nowrap">
-            Guest Operator
-          </span>
-        </div>
-      )}
-
-      {/* Control Bar: Search & Platform Filters */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-950/80 border border-[#262626]">
+      {/* Control Bar: Search & Compact Filters */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 p-3 rounded-xl bg-neutral-950/90 border border-neutral-800">
         {/* Search */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari akun, email master Gmail, platform stock, atau konsentrasi tema..."
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg bg-neutral-900 border border-[#333] text-white placeholder-neutral-500 focus:outline-none focus:border-indigo-500"
+            placeholder="Cari akun, email master, platform, tema..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-neutral-900 border border-neutral-700 text-white placeholder-neutral-500 focus:outline-none focus:border-indigo-500"
             id="ms-search-input"
           />
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+        {/* Filter Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-wrap">
+          {/* PIC Filter - BOTH ADMIN & GUEST */}
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">PIC:</span>
+            <select
+              value={picFilter}
+              onChange={(e) => setPicFilter(e.target.value)}
+              className="bg-transparent text-xs text-amber-300 font-semibold focus:outline-none cursor-pointer pr-1"
+              id="ms-filter-pic-select"
+            >
+              <option value="all" className="bg-neutral-900 text-white">Semua PIC</option>
+              <option value="none" className="bg-neutral-900 text-neutral-400">Belum Diatur</option>
+              {availablePics.map(pic => (
+                <option key={pic} value={pic} className="bg-neutral-900 text-amber-300">{pic}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Visibility Filter - ADMIN ONLY */}
+          {userRole !== 'guest' && (
+            <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Visibilitas:</span>
+              <select
+                value={visibilityFilter}
+                onChange={(e) => setVisibilityFilter(e.target.value as any)}
+                className="bg-transparent text-xs text-emerald-300 font-semibold focus:outline-none cursor-pointer pr-1"
+                id="ms-filter-vis-select"
+              >
+                <option value="all" className="bg-neutral-900 text-white">Semua</option>
+                <option value="visible" className="bg-neutral-900 text-emerald-400">Ditampilkan</option>
+                <option value="hidden" className="bg-neutral-900 text-neutral-400">Disembunyikan</option>
+              </select>
+            </div>
+          )}
+
           {/* Platform Filter */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-[#333] text-xs">
-            <Filter className="w-3.5 h-3.5 text-neutral-400 ml-1.5" />
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <Filter className="w-3 h-3 text-neutral-400 ml-0.5" />
             <select
               value={platformFilter}
               onChange={(e) => setPlatformFilter(e.target.value)}
               className="bg-transparent text-xs text-neutral-200 focus:outline-none cursor-pointer pr-1"
               id="ms-filter-platform-select"
             >
-              <option value="all" className="bg-neutral-900 text-white">Semua Platform Stock</option>
+              <option value="all" className="bg-neutral-900 text-white">Semua Platform</option>
               <option value="Adobe Stock" className="bg-neutral-900 text-red-300">Adobe Stock</option>
               <option value="Shutterstock" className="bg-neutral-900 text-rose-300">Shutterstock</option>
               <option value="Freepik" className="bg-neutral-900 text-blue-300">Freepik</option>
@@ -435,15 +531,15 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           </div>
 
           {/* Sort By */}
-          <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-[#333] text-xs">
-            <ArrowUpDown className="w-3.5 h-3.5 text-neutral-400 ml-1.5" />
+          <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-700 text-xs">
+            <ArrowUpDown className="w-3 h-3 text-neutral-400 ml-0.5" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="bg-transparent text-xs text-neutral-200 focus:outline-none cursor-pointer pr-1"
               id="ms-sort-select"
             >
-              <option value="default" className="bg-neutral-900 text-white">Urutan Default</option>
+              <option value="default" className="bg-neutral-900 text-white">Default</option>
               <option value="item-desc" className="bg-neutral-900 text-white">Item Terbanyak</option>
               <option value="new-desc" className="bg-neutral-900 text-white">Item Baru Terbanyak</option>
               <option value="reject-desc" className="bg-neutral-900 text-white">Reject Terbanyak</option>
@@ -532,16 +628,16 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                           return (
                             <div className="space-y-1">
                               <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                                <span className="font-mono font-bold text-neutral-200 truncate max-w-[170px]" title={isMasked ? 'Gmail disamarkan untuk keamanan (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
+                                <span className={`w-2 h-2 rounded-full ${isMasked ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                                <span className="font-mono font-bold text-neutral-200 truncate max-w-[170px]" title={isMasked ? 'Akun Gmail Terproteksi (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
                                   {displayEmail}
                                 </span>
-                                {rawEmail && (
+                                {!isMasked && rawEmail && (
                                   <button
                                     type="button"
                                     onClick={() => handleCopyEmail(displayEmail, `ms_gm_${platId}`)}
                                     className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
-                                    title={isMasked ? 'Salin Email Disamarkan' : 'Salin Email Master'}
+                                    title="Salin Email Master"
                                   >
                                     {copiedId === `ms_gm_${platId}` ? (
                                       <Check className="w-3 h-3 text-emerald-400" />
@@ -561,9 +657,9 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
 
                       {/* Column 2: Platform & Akun */}
                       <td className="py-3.5 px-4 align-top">
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <div className="flex items-start justify-between gap-1.5">
-                            <div>
+                            <div className="min-w-0">
                               {/* Platform Badge */}
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-sans font-bold border ${badge.bg}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
@@ -571,33 +667,11 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                               </span>
 
                               <p className="font-sans font-black text-sm text-white mt-1 hover:text-indigo-300 transition-colors">
-                                {account.accountName}
+                                {maskIfEmail(account.accountName, userRole === 'guest')}
                               </p>
-                              {/* PIC & Visibility - Inline Edit */}
-                              {userRole !== 'guest' ? (
-                                <div className="space-y-1 mt-1">
-                                  <input
-                                    type="text"
-                                    defaultValue={account.pic || ''}
-                                    placeholder="Input PIC..."
-                                    onBlur={(e) => onUpdateAccount?.({ ...account, pic: e.target.value })}
-                                    className="w-full text-[10px] bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-amber-400 focus:border-amber-500"
-                                  />
-                                  <button
-                                    onClick={() => onUpdateAccount?.({ ...account, isVisible: account.isVisible === false ? true : false })}
-                                    className={`flex items-center gap-1 text-[10px] font-bold ${account.isVisible !== false ? 'text-emerald-400' : 'text-neutral-500'}`}
-                                  >
-                                    {account.isVisible !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                                    {account.isVisible !== false ? 'Tampil' : 'Sembunyi'}
-                                  </button>
-                                </div>
-                              ) : (
-                                account.pic && (
-                                  <p className="text-[10px] text-amber-400 font-bold mt-0.5">PIC: {account.pic}</p>
-                                )
-                              )}
-                              <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1">
-                                <span>{account.usernameOrHandle || '@account'}</span>
+
+                              <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1 mt-0.5">
+                                <span>{maskIfEmail(account.usernameOrHandle, userRole === 'guest') || '@account'}</span>
                                 {account.channelOrProfileUrl && (
                                   <a
                                     href={account.channelOrProfileUrl}
@@ -612,17 +686,87 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                               </p>
                             </div>
 
-                            {onEditPlatformAccount && userRole !== 'guest' && (
-                              <button
-                                type="button"
-                                onClick={() => onEditPlatformAccount(account)}
-                                className="p-1 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
-                                title="Edit Detail Kredensial Akun"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                              </button>
+                            {/* Visibility Toggle Icon & Edit - ADMIN ONLY */}
+                            {userRole !== 'guest' && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleVisibility(account)}
+                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                    account.isVisible !== false
+                                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                      : 'bg-neutral-900 border-neutral-700 text-neutral-500 hover:bg-neutral-800'
+                                  }`}
+                                  title={
+                                    account.isVisible !== false
+                                      ? 'Ditampilkan di Guest (Klik icon mata untuk menyembunyikan)'
+                                      : 'Disembunyikan dari Guest (Klik icon mata untuk menampilkan)'
+                                  }
+                                  id={`ms-vis-btn-${platId}`}
+                                >
+                                  {account.isVisible !== false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                </button>
+                                {onEditPlatformAccount && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPlatformAccount(account)}
+                                    className="p-1.5 rounded-lg border border-[#333] text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                                    title="Edit Kredensial Lengkap"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
+
+                          {/* Visibility Pill Badge - ADMIN ONLY */}
+                          {userRole !== 'guest' && (
+                            <div>
+                              {account.isVisible !== false ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                  <Eye className="w-2.5 h-2.5" />
+                                  <span>Tampil di Guest</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-neutral-900 text-neutral-400 border border-neutral-700">
+                                  <EyeOff className="w-2.5 h-2.5" />
+                                  <span>Disembunyikan dari Guest</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* PIC (Penanggung Jawab) - EDITABLE FOR ADMIN, READONLY FOR GUEST */}
+                          {userRole !== 'guest' ? (
+                            <div className="flex items-center gap-1.5 p-1 rounded-md bg-neutral-950 border border-neutral-800">
+                              <span className="text-[9px] font-mono font-bold text-amber-400 px-1 uppercase tracking-wider shrink-0">
+                                PIC:
+                              </span>
+                              <input
+                                type="text"
+                                value={picMap[platId] ?? account.pic ?? ''}
+                                placeholder="Isi PIC (cth: Wahyu)..."
+                                onChange={(e) => handlePicChange(account, e.target.value)}
+                                onBlur={() => handlePicBlur(account)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-full text-xs font-semibold bg-transparent text-amber-300 placeholder-neutral-600 focus:outline-none"
+                                title="Ketik nama PIC lalu tekan Enter atau klik di luar untuk menyimpan"
+                                id={`ms-pic-input-${platId}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase">PIC:</span>
+                              <span className="text-xs font-bold text-amber-400">
+                                {account.pic ? account.pic : <span className="text-neutral-500 italic font-normal">Belum diatur</span>}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -701,30 +845,53 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
 
                       {/* Column 7: Aksi / Simpan Perbaris */}
                       <td className="py-3.5 px-3 align-top text-center">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleSaveRow(platId)}
-                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-sans font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            isSaved
-                              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/40'
-                              : 'bg-indigo-600/90 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-900/20'
-                          }`}
-                          id={`ms-save-row-btn-${platId}`}
-                          title="Simpan baris ini ke cloud"
-                        >
-                          {isSaved ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Tersimpan</span>
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-3.5 h-3.5" />
-                              <span>Simpan</span>
-                            </>
+                        <div className="flex flex-col gap-1.5">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleSaveRow(platId)}
+                            className={`w-full py-1.5 px-3 rounded-lg text-xs font-sans font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              isSaved
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/40'
+                                : 'bg-indigo-600/90 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-900/20'
+                            }`}
+                            id={`ms-save-row-btn-${platId}`}
+                            title="Simpan baris ini ke cloud"
+                          >
+                            {isSaved ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Tersimpan</span>
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-3.5 h-3.5" />
+                                <span>Simpan</span>
+                              </>
+                            )}
+                          </motion.button>
+
+                          {/* Quick Visibility Toggle - Admin only */}
+                          {userRole !== 'guest' && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVisibility(account)}
+                              className={`w-full py-1 px-1.5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center gap-1 border transition-colors cursor-pointer ${
+                                account.isVisible !== false
+                                  ? 'bg-neutral-900 border-emerald-500/30 text-emerald-400 hover:bg-emerald-950/40'
+                                  : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-white'
+                              }`}
+                              title={
+                                account.isVisible !== false
+                                  ? 'Ditampilkan di Guest (Klik untuk sembunyikan)'
+                                  : 'Disembunyikan dari Guest (Klik untuk tampilkan)'
+                              }
+                            >
+                              {account.isVisible !== false ? <Eye className="w-3 h-3 text-emerald-400" /> : <EyeOff className="w-3 h-3 text-neutral-500" />}
+                              <span>{account.isVisible !== false ? 'Tampil' : 'Sembunyi'}</span>
+                            </button>
                           )}
-                        </motion.button>
+                        </div>
                         <span className="block text-[9px] text-neutral-500 mt-1 font-mono">
                           per baris
                         </span>

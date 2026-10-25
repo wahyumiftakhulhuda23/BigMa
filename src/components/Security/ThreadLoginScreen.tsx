@@ -85,8 +85,8 @@ interface ThreadLoginScreenProps {
 export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({ 
   onUnlock 
 }) => {
-  // Mode selection: Admin (full master) or Guest (restricted content operator)
-  const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('admin');
+  // Landing view: 'landing' (2 choices: Admin & Guest) or 'admin' (PIN 2000 + yarn quiz)
+  const [loginView, setLoginView] = useState<'landing' | 'admin'>('landing');
 
   // Access Code State (PIN: 2000)
   const [accessCode, setAccessCode] = useState('');
@@ -151,13 +151,13 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
   };
 
   useEffect(() => {
-    if (activeRoleTab === 'admin') {
+    if (loginView === 'admin') {
       updateLines();
       const handleResize = () => updateLines();
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
     }
-  }, [connections, selectedQuestion, activeRoleTab]);
+  }, [connections, selectedQuestion, loginView]);
 
   // Handle clicking left item
   const handleSelectQuestion = (qId: string) => {
@@ -312,13 +312,13 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
             <div className={`p-3 rounded-2xl border transition-all duration-300 ${
               isUnlocked 
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/20 scale-110' 
-                : activeRoleTab === 'admin'
+                : loginView === 'admin'
                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10'
                 : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
             }`}>
               {isUnlocked ? (
                 <Unlock className="w-7 h-7 stroke-[2.5]" />
-              ) : activeRoleTab === 'admin' ? (
+              ) : loginView === 'admin' ? (
                 <Lock className="w-7 h-7 stroke-[2.5]" />
               ) : (
                 <Users className="w-7 h-7 stroke-[2.5]" />
@@ -328,151 +328,129 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Big<span className="text-amber-400">MA</span>
                 <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700">
-                  {activeRoleTab === 'admin' ? 'Admin Master Gate' : 'Guest Operator Gate'}
+                  {loginView === 'admin' ? 'Admin Master Gate' : 'Portal Akses Studio'}
                 </span>
               </h1>
               <p className="text-xs text-neutral-400">
-                {activeRoleTab === 'admin' 
-                  ? 'Mode Admin: Akses penuh keseluruhan akun, masukkan kode akses dan kuis benang.' 
-                  : 'Mode Guest: Khusus operator Penjadwalan YouTube & Input Data Microstock.'}
+                {loginView === 'admin' 
+                  ? 'Mode Admin: Masukkan kode akses brankas & hubungkan kuis benang pengaman.' 
+                  : 'Pilih Masuk Guest (Langsung Buka Data) atau Login Admin.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Role Mode Switcher Tabs */}
-        <div className="grid grid-cols-2 p-1.5 bg-neutral-950 border border-[#262626] rounded-xl gap-1.5 shadow-inner">
-          <button
-            type="button"
-            onClick={() => setActiveRoleTab('admin')}
-            className={`flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeRoleTab === 'admin'
-                ? 'bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/25 ring-1 ring-amber-400'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-900/60'
-            }`}
-            id="tab-login-admin"
-          >
-            <Shield className="w-4 h-4 shrink-0" />
-            <div className="text-left leading-tight">
-              <span className="block">Menu Admin</span>
-              <span className={`text-[10px] block font-mono font-normal ${activeRoleTab === 'admin' ? 'text-neutral-900 font-semibold' : 'text-neutral-500'}`}>
-                Kode Akses + Kuis Benang
-              </span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveRoleTab('guest');
-              onUnlock('guest');
-            }}
-            className={`flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeRoleTab === 'guest'
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-900/60'
-            }`}
-            id="tab-login-guest"
-          >
-            <Users className="w-4 h-4 shrink-0" />
-            <div className="text-left leading-tight">
-              <span className="block">Menu Guest</span>
-              <span className={`text-[10px] block font-mono font-normal ${activeRoleTab === 'guest' ? 'text-indigo-200' : 'text-neutral-500'}`}>
-                YouTube &amp; Microstock
-              </span>
-            </div>
-          </button>
-        </div>
-
         {/* ---------------------------------------------------- */}
-        {/* VIEW 1: GUEST MODE LOGIN PANEL                      */}
+        {/* VIEW 1: INITIAL 2-BUTTON SELECTION SCREEN            */}
         {/* ---------------------------------------------------- */}
-        {activeRoleTab === 'guest' && (
+        {loginView === 'landing' && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="space-y-4"
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4 my-2"
           >
-            <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
-              <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
-                <Sparkles className="w-4 h-4" />
-                <span>Portal Operator Konten &amp; Microstock (Guest Mode)</span>
-              </div>
-              <p className="text-xs text-neutral-300 leading-relaxed">
-                Mode Guest dirancang untuk tim konten atau operator harian yang bertugas mengelola jadwal upload serta metrik microstock tanpa memerlukan kode akses admin.
+            <div className="text-center mb-4">
+              <span className="text-xs uppercase tracking-widest text-neutral-400 font-mono font-bold">
+                Pilih Jenis Hak Akses Masuk
+              </span>
+              <p className="text-xs text-neutral-400 mt-1">
+                Silakan pilih salah satu opsi di bawah untuk membuka sistem:
               </p>
-
-              {/* Permissions & Capabilities Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
-                {/* Allowed Actions */}
-                <div className="p-3 rounded-lg bg-neutral-950/80 border border-emerald-500/30 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    <span>Fitur yang Dapat Diedit:</span>
-                  </div>
-                  <ul className="text-[11px] text-neutral-300 space-y-1 pl-1 font-sans">
-                    <li className="flex items-start gap-1.5">
-                      <PlaySquare className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                      <span><strong>Penjadwalan YouTube:</strong> Jadwal Upload &amp; Status, Draft, Siap Upload, Monet, Jumlah Bahan, Keterangan, Aksi.</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                      <span><strong>Data Microstock:</strong> Jumlah Item, New, Reject, Konsentrasi Akun, Aksi.</span>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Restricted & Masked */}
-                <div className="p-3 rounded-lg bg-neutral-950/80 border border-rose-500/30 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-rose-400 font-bold text-xs">
-                    <EyeOff className="w-3.5 h-3.5 shrink-0" />
-                    <span>Proteksi Kredensial &amp; Keamanan:</span>
-                  </div>
-                  <ul className="text-[11px] text-neutral-300 space-y-1 pl-1 font-sans">
-                    <li className="flex items-start gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
-                      <span><strong>Kredensial Akun:</strong> Tidak bisa diedit, hanya admin yang dapat mengubah kredensial.</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
-                      <span><strong>Gmail Disamarkan:</strong> Email master hanya tampil separuh, sisanya disamarkan (<code className="text-amber-300 font-mono text-[10px]">wah******@gmail.com</code>).</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
-                      <span><strong>Proteksi Menu:</strong> Menu Keuangan, Master Gmail, Office, &amp; Project Dev disembunyikan.</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
             </div>
 
-            {/* Guest Entry CTA Button */}
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              type="button"
-              onClick={handleUnlockGuest}
-              className="w-full py-3.5 px-6 bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2.5 cursor-pointer transition-all"
-              id="btn-login-guest-submit"
-            >
-              <UserCheck className="w-5 h-5" />
-              <span>Masuk Sebagai Guest (Operator YouTube &amp; Microstock)</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </motion.button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* BUTTON 1: GUEST MODE (DIRECT INSTANT ACCESS TO DATA) */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={handleUnlockGuest}
+                className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/70 via-neutral-900 to-indigo-950/50 border-2 border-indigo-500/40 hover:border-indigo-400 text-left flex flex-col justify-between gap-4 shadow-xl shadow-indigo-950/40 transition-all cursor-pointer group"
+                id="btn-login-guest-direct"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      ⚡ Langsung Tampil
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-white group-hover:text-indigo-300 transition-colors flex items-center gap-1.5">
+                    <span>1. Masuk Guest</span>
+                    <ArrowRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
+                    Langsung melihat &amp; mengelola data <strong>Penjadwalan YouTube</strong> dan <strong>Data Microstock</strong> tanpa PIN atau kuis.
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-indigo-500/20 flex items-center justify-between text-[11px] text-indigo-300 font-bold">
+                  <span>Klik untuk Masuk Langsung</span>
+                  <span className="text-neutral-400 font-mono text-[10px]">Guest Operator</span>
+                </div>
+              </motion.button>
+
+              {/* BUTTON 2: ADMIN MODE (REQUIRES PIN + YARN QUIZ) */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={() => setLoginView('admin')}
+                className="p-5 rounded-2xl bg-gradient-to-br from-amber-950/50 via-neutral-900 to-amber-950/30 border-2 border-amber-500/40 hover:border-amber-400 text-left flex flex-col justify-between gap-4 shadow-xl shadow-amber-950/30 transition-all cursor-pointer group"
+                id="btn-login-admin-select"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                      <Shield className="w-6 h-6" />
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      🔒 PIN + Kuis Benang
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                    <span>2. Login Admin</span>
+                    <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
+                    Akses penuh Master Studio (Kelola Akun, Keuangan, Database Gmail, Office, dll). Memerlukan kode akses &amp; kuis benang.
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-amber-500/20 flex items-center justify-between text-[11px] text-amber-300 font-bold">
+                  <span>Buka Otorisasi Admin &rarr;</span>
+                  <span className="text-neutral-400 font-mono text-[10px]">Master Studio</span>
+                </div>
+              </motion.button>
+            </div>
           </motion.div>
         )}
 
         {/* ---------------------------------------------------- */}
         {/* VIEW 2: ADMIN MODE (PIN 2000 + KUIS BENANG)         */}
         {/* ---------------------------------------------------- */}
-        {activeRoleTab === 'admin' && (
+        {loginView === 'admin' && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             className="space-y-4"
           >
+            {/* Back button to return to selection screen */}
+            <div className="flex items-center justify-between pb-1">
+              <button
+                type="button"
+                onClick={() => setLoginView('landing')}
+                className="text-xs text-neutral-400 hover:text-amber-400 flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-neutral-950 border border-neutral-800 transition-colors cursor-pointer"
+              >
+                <span>&larr;</span>
+                <span>Kembali ke Pilihan Login</span>
+              </button>
+              <span className="text-[11px] text-amber-400 font-mono font-bold">
+                Otorisasi Admin Master
+              </span>
+            </div>
             {/* Section 1: Kode Akses Keamanan */}
             <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3 w-full sm:w-auto">

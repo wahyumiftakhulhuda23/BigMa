@@ -46,6 +46,8 @@ export function sanitizeAppData(data: Partial<AppData>): AppData {
       status: (p.status as any) || 'Aktif',
       niche: p.niche ?? '',
       notes: p.notes ?? '',
+      pic: p.pic ?? '',
+      isVisible: p.isVisible !== undefined ? Boolean(p.isVisible) : true,
       createdAt: p.createdAt || new Date().toISOString(),
     })),
     notes: (data.notes || []).map((n: Partial<AccountNote>) => ({
