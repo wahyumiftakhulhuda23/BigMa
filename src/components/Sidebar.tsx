@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ActiveTab, AppData, TopMode } from '../types';
+import { ActiveTab, AppData, TopMode, UserRole } from '../types';
 import { 
   KeyRound, 
   Layers, 
@@ -33,7 +33,10 @@ import {
   PanelLeftOpen,
   Menu,
   X,
-  User as UserIcon
+  User as UserIcon,
+  Shield,
+  Users,
+  LogOut
 } from 'lucide-react';
 import { formatCurrency, getDeadlineUrgency } from '../utils/formatters';
 
@@ -50,6 +53,8 @@ interface SidebarProps {
   userEmail?: string | null;
   userName?: string | null;
   onLockApp?: () => void;
+  userRole?: UserRole;
+  onSwitchToAdmin?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -65,6 +70,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userEmail,
   userName,
   onLockApp,
+  userRole,
+  onSwitchToAdmin,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -240,8 +247,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const guestNavTabs = freelanceNavTabs.filter(tab => 
+    tab.id === 'youtube-schedule' || tab.id === 'microstock'
+  );
+
   const currentTabs = 
-    topMode === 'freelance' 
+    userRole === 'guest'
+      ? guestNavTabs
+      : topMode === 'freelance' 
       ? freelanceNavTabs 
       : topMode === 'office' 
       ? officeNavTabs 
@@ -270,60 +283,79 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Top Mode Quick Switcher Mobile */}
-        <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-[#262626] overflow-x-auto max-w-[200px] scrollbar-none">
-          <button
-            onClick={() => {
-              setTopMode('freelance');
-              setActiveTab('gmail');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
-              topMode === 'freelance'
-                ? 'bg-amber-500 text-neutral-950 shadow-md'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Freelance
-          </button>
-          <button
-            onClick={() => {
-              setTopMode('office');
-              setActiveTab('office-jobs');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
-              topMode === 'office'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Office
-          </button>
-          <button
-            onClick={() => {
-              setTopMode('project-dev');
-              setActiveTab('project-dev-all');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
-              topMode === 'project-dev'
-                ? 'bg-purple-600 text-white shadow-md'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Dev
-          </button>
-          <button
-            onClick={() => {
-              setTopMode('digital-product');
-              setActiveTab('digital-product-all');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
-              topMode === 'digital-product'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Produk
-          </button>
-        </div>
+        {userRole === 'guest' ? (
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold flex items-center gap-1 font-mono">
+              <Users className="w-3 h-3 text-indigo-400" />
+              <span>Guest Operator</span>
+            </span>
+            {onSwitchToAdmin && (
+              <button
+                onClick={onSwitchToAdmin}
+                className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                title="Beralih ke Admin (PIN 2000 & Kuis Benang)"
+              >
+                <Shield className="w-3 h-3" />
+                <span>Admin</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-[#262626] overflow-x-auto max-w-[200px] scrollbar-none">
+            <button
+              onClick={() => {
+                setTopMode('freelance');
+                setActiveTab('gmail');
+              }}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
+                topMode === 'freelance'
+                  ? 'bg-amber-500 text-neutral-950 shadow-md'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Freelance
+            </button>
+            <button
+              onClick={() => {
+                setTopMode('office');
+                setActiveTab('office-jobs');
+              }}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
+                topMode === 'office'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Office
+            </button>
+            <button
+              onClick={() => {
+                setTopMode('project-dev');
+                setActiveTab('project-dev-all');
+              }}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
+                topMode === 'project-dev'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Dev
+            </button>
+            <button
+              onClick={() => {
+                setTopMode('digital-product');
+                setActiveTab('digital-product-all');
+              }}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${
+                topMode === 'digital-product'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Produk
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Backdrop for Mobile Sidebar Drawer */}
@@ -393,7 +425,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Mode Switcher Buttons (4 Highlight Spaces) */}
-          {!collapsed ? (
+          {userRole === 'guest' ? (
+            !collapsed ? (
+              <div className="p-3 border-b border-[#262626] bg-indigo-950/20">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-indigo-400" />
+                    Mode Guest
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Aktif
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400 leading-snug">
+                  Akses Khusus: <strong>Penjadwalan YouTube</strong> &amp; <strong>Data Microstock</strong>. Kredensial akun terproteksi rahasia.
+                </p>
+                {onSwitchToAdmin && (
+                  <button
+                    type="button"
+                    onClick={onSwitchToAdmin}
+                    className="mt-2.5 w-full py-2 px-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-amber-400 hover:text-amber-300 border border-amber-500/40 hover:border-amber-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    title="Masuk sebagai Admin Master dengan PIN 2000 dan kuis benang"
+                    id="sidebar-switch-admin-btn"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Login Admin Master</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="py-3 border-b border-[#262626] flex flex-col items-center gap-2">
+                {onSwitchToAdmin && (
+                  <button
+                    type="button"
+                    onClick={onSwitchToAdmin}
+                    className="p-2 rounded-xl border border-amber-500/40 bg-neutral-900 text-amber-400 hover:bg-neutral-800 cursor-pointer"
+                    title="Beralih ke Admin Master (PIN 2000 & Kuis Benang)"
+                  >
+                    <Shield className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )
+          ) : !collapsed ? (
             <div className="p-3 border-b border-[#262626] bg-neutral-950/80">
               <p className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest mb-2 px-1">
                 Pilih Mode Ruang Kerja:
@@ -534,15 +608,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!collapsed && (
               <div className="px-2 py-1 text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest flex items-center justify-between">
                 <span>
-                  Menu {
-                    topMode === 'freelance' 
-                      ? 'Freelance Studio' 
-                      : topMode === 'office' 
-                      ? 'Daftar Kantor' 
-                      : topMode === 'project-dev' 
-                      ? 'Project Dev' 
-                      : 'Digital Produk'
-                  }
+                  {userRole === 'guest'
+                    ? 'Menu Operator (Guest)'
+                    : `Menu ${
+                        topMode === 'freelance' 
+                          ? 'Freelance Studio' 
+                          : topMode === 'office' 
+                          ? 'Daftar Kantor' 
+                          : topMode === 'project-dev' 
+                          ? 'Project Dev' 
+                          : 'Digital Produk'
+                      }`}
                 </span>
                 <span className="text-amber-400 font-normal">{currentTabs.length} Tab</span>
               </div>
@@ -605,111 +681,120 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Quick Add Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setQuickAddOpen(!quickAddOpen)}
-              className={`w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md cursor-pointer ${
-                collapsed ? 'p-2.5' : ''
-              }`}
-              id="sidebar-quick-add-btn"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              {!collapsed && <span>+ Tambah Data</span>}
-            </button>
+          {/* Quick Add Dropdown - Admin Only */}
+          {userRole !== 'guest' ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQuickAddOpen(!quickAddOpen)}
+                className={`w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                  collapsed ? 'p-2.5' : ''
+                }`}
+                id="sidebar-quick-add-btn"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                {!collapsed && <span>+ Tambah Data</span>}
+              </button>
 
-            <AnimatePresence>
-              {quickAddOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setQuickAddOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                    className="absolute bottom-12 left-0 w-60 bg-[#141414] text-[#E5E5E5] rounded-xl shadow-2xl border border-[#262626] py-1.5 z-30 space-y-0.5"
-                  >
-                    <div className="px-3 py-1 text-[10px] font-bold text-neutral-500 uppercase border-b border-[#262626] mb-1 flex items-center justify-between">
-                      <span>Aksi Cepat Data</span>
-                      <Sparkles className="w-3 h-3 text-amber-400" />
-                    </div>
-
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('office'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-blue-300 font-bold"
+              <AnimatePresence>
+                {quickAddOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setQuickAddOpen(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                      className="absolute bottom-12 left-0 w-60 bg-[#141414] text-[#E5E5E5] rounded-xl shadow-2xl border border-[#262626] py-1.5 z-30 space-y-0.5"
                     >
-                      <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Pekerjaan Kantor Baru</span>
-                    </button>
+                      <div className="px-3 py-1 text-[10px] font-bold text-neutral-500 uppercase border-b border-[#262626] mb-1 flex items-center justify-between">
+                        <span>Aksi Cepat Data</span>
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                      </div>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-bug'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-rose-300 font-bold"
-                    >
-                      <Bug className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Lapor Bug Baru (Dev)</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('office'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-blue-300 font-bold"
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Pekerjaan Kantor Baru</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-idea'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-amber-300 font-bold"
-                    >
-                      <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Ide / Konsep Fitur Baru (Dev)</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-bug'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-rose-300 font-bold"
+                      >
+                        <Bug className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Lapor Bug Baru (Dev)</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-maint'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-cyan-300 font-bold"
-                    >
-                      <Wrench className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Maintenance / Perbaikan (Dev)</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-idea'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-amber-300 font-bold"
+                      >
+                        <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Ide / Konsep Fitur Baru (Dev)</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('digital-product'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-emerald-300 font-bold"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Rilis Produk Digital Baru</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('dev-maint'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-cyan-300 font-bold"
+                      >
+                        <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Maintenance / Perbaikan (Dev)</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('gmail'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
-                    >
-                      <Mail className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Master Gmail Baru</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('digital-product'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-emerald-300 font-bold"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Rilis Produk Digital Baru</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('platform'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Akun Platform Baru</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('gmail'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Master Gmail Baru</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('note'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
-                    >
-                      <StickyNote className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Catatan / SOP Baru</span>
-                    </button>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('platform'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Akun Platform Baru</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setQuickAddOpen(false); onQuickAdd('income'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
-                    >
-                      <CircleDollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Catat Pemasukan</span>
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('note'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
+                      >
+                        <StickyNote className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Catatan / SOP Baru</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setQuickAddOpen(false); onQuickAdd('income'); }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-800 flex items-center gap-2.5 text-neutral-200"
+                      >
+                        <CircleDollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Catat Pemasukan</span>
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            !collapsed && (
+              <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-[#262626] text-[11px] text-neutral-400 text-center">
+                <span className="font-semibold text-neutral-300">Mode Operator Terbatas</span>
+                <p className="text-[10px] text-neutral-500 mt-0.5">Penjadwalan YouTube &amp; Microstock</p>
+              </div>
+            )
+          )}
 
           {/* Bottom Icons Toolbar */}
           <div className="flex items-center justify-between pt-1">
@@ -727,8 +812,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
 
-            {/* Export Excel */}
-            {onExportAll && (
+            {/* Export Excel (Admin Only) */}
+            {userRole !== 'guest' && onExportAll && (
               <button
                 onClick={onExportAll}
                 className="p-2 rounded-lg text-neutral-400 hover:text-emerald-400 hover:bg-neutral-900 cursor-pointer"
@@ -738,23 +823,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
 
-            {/* Settings Modal */}
-            <button
-              onClick={onOpenBackupModal}
-              className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-900 cursor-pointer"
-              title="Pengaturan & Backup"
-            >
-              <Settings2 className="w-4 h-4" />
-            </button>
+            {/* Settings Modal (Admin Only) */}
+            {userRole !== 'guest' && (
+              <button
+                onClick={onOpenBackupModal}
+                className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-900 cursor-pointer"
+                title="Pengaturan & Backup"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+            )}
 
-            {/* Lock App */}
+            {/* Switch to Admin if in Guest Mode */}
+            {userRole === 'guest' && onSwitchToAdmin && (
+              <button
+                onClick={onSwitchToAdmin}
+                className="p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-neutral-900 cursor-pointer"
+                title="Beralih ke Admin Master (PIN & Kuis Benang)"
+              >
+                <Shield className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Lock / Exit App */}
             {onLockApp && (
               <button
                 onClick={onLockApp}
-                className="p-2 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-neutral-900 cursor-pointer"
-                title="Kunci Brankas Security Gate"
+                className="p-2 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-neutral-900 cursor-pointer"
+                title={userRole === 'guest' ? 'Keluar dari Sesi Guest' : 'Kunci Brankas Security Gate'}
               >
-                <Lock className="w-4 h-4" />
+                {userRole === 'guest' ? <LogOut className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
               </button>
             )}
           </div>

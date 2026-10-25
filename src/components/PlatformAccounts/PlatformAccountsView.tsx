@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PlatformAccount, GmailAccount } from '../../types';
+import { PlatformAccount, GmailAccount, UserRole } from '../../types';
 import { exportToExcel, exportTableToPdf } from '../../utils/exportUtils';
+import { maskEmail } from '../../utils/maskUtils';
 import { ConfirmModal } from '../ConfirmModal';
 import { 
   Layers, 
@@ -36,6 +37,8 @@ interface PlatformAccountsViewProps {
   onDeleteAccount: (id: string) => void;
   onQuickUpdateFinance: (platformAccountId: string) => void;
   onQuickAddIncome: (platformAccountId: string) => void;
+  onUpdateAccount?: (account: PlatformAccount) => void;
+  userRole?: UserRole;
 }
 
 export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
@@ -46,6 +49,8 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
   onDeleteAccount,
   onQuickUpdateFinance,
   onQuickAddIncome,
+  onUpdateAccount,
+  userRole,
 }) => {
   const [selectedSubMenu, setSelectedSubMenu] = useState<string>('All');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -349,7 +354,19 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
 
                     {/* Nama Akun / Channel */}
                     <td className="py-3 px-3.5">
-                      <div className="font-semibold text-neutral-100 text-sm">{account.accountName}</div>
+                      <div className="font-semibold text-neutral-100 text-sm flex items-center justify-between">
+                        <span>{account.accountName}</span>
+                        {account.isVisible === false && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-neutral-800 text-neutral-400 border border-neutral-700">
+                            Disembunyikan
+                          </span>
+                        )}
+                      </div>
+                      {account.pic && (
+                        <div className="text-[11px] text-amber-400 font-medium mt-0.5 flex items-center gap-1">
+                          <span>PIC: {account.pic}</span>
+                        </div>
+                      )}
                       {account.channelOrProfileUrl && (
                         <a
                           href={account.channelOrProfileUrl}
@@ -369,7 +386,9 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-1 font-medium text-neutral-200 text-[11px]">
                             <Mail className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span className="truncate select-all">{gmail.email}</span>
+                            <span className="truncate select-all">
+                              {userRole === 'guest' ? maskEmail(gmail.email) : gmail.email}
+                            </span>
                           </div>
                           <span className="text-[10px] text-neutral-500 block truncate">
                             {gmail.notes || 'Master Gmail Terhubung'}
@@ -478,6 +497,28 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
                           id={`add-inc-${account.id}`}
                         >
                           <PlusCircle className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentIsVisible = account.isVisible !== false;
+                            const nextVis = !currentIsVisible;
+                            const updatedAccount = { ...account, isVisible: nextVis };
+                            if (onUpdateAccount) {
+                              onUpdateAccount(updatedAccount);
+                            } else {
+                              onEditAccount(updatedAccount);
+                            }
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            account.isVisible !== false 
+                              ? 'text-emerald-400 hover:bg-neutral-800' 
+                              : 'text-neutral-500 hover:bg-neutral-800'
+                          }`}
+                          title={account.isVisible !== false ? 'Ditampilkan di Guest (Klik untuk sembunyikan)' : 'Disembunyikan dari Guest (Klik untuk tampilkan)'}
+                          id={`toggle-vis-${account.id}`}
+                        >
+                          {account.isVisible !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => onEditAccount(account)}

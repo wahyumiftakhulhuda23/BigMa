@@ -15,7 +15,8 @@ import {
   DigitalProductItem,
   DevItemType,
   TopMode,
-  ActiveTab 
+  ActiveTab,
+  UserRole
 } from './types';
 import { loadAppData, saveAppData } from './utils/storage';
 import { 
@@ -71,9 +72,13 @@ import { DeadlineModal } from './components/CalendarDeadlines/DeadlineModal';
 import { Lock, Cloud } from 'lucide-react';
 
 export default function App() {
-  // 1. Security Gate Unlock State (Requires PIN 2000 + Yarn Quiz)
+  // 1. Security Gate Unlock State & Role (Admin / Guest)
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     return sessionStorage.getItem('bigma_cloud_vault_unlocked') === 'true';
+  });
+
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    return (sessionStorage.getItem('bigma_user_role') as UserRole) || 'admin';
   });
 
   // 2. Core App Data State
@@ -82,6 +87,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('gmail');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+  // If Guest, restrict active tab to Youtube Schedule or Microstock
+  useEffect(() => {
+    if (isUnlocked && userRole === 'guest') {
+      if (activeTab !== 'youtube-schedule' && activeTab !== 'microstock') {
+        setActiveTab('youtube-schedule');
+        setTopMode('freelance');
+      }
+    }
+  }, [isUnlocked, userRole, activeTab]);
 
   // Office Modal State
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
@@ -204,14 +219,25 @@ export default function App() {
   // ----------------------------------------------------
   // Security Gate Handlers
   // ----------------------------------------------------
-  const handleUnlock = () => {
+  const handleUnlock = (role: UserRole) => {
     sessionStorage.setItem('bigma_cloud_vault_unlocked', 'true');
+    sessionStorage.setItem('bigma_user_role', role);
+    setUserRole(role);
     setIsUnlocked(true);
+    if (role === 'guest') {
+      setTopMode('freelance');
+      setActiveTab('youtube-schedule');
+    }
   };
 
   const handleLockSession = () => {
     sessionStorage.removeItem('bigma_cloud_vault_unlocked');
+    sessionStorage.removeItem('bigma_user_role');
     setIsUnlocked(false);
+  };
+
+  const handleSwitchToAdmin = () => {
+    handleLockSession();
   };
 
   // Urgent notifications count
@@ -494,6 +520,7 @@ export default function App() {
 
   // Quick Add from Sidebar / Actions
   const handleQuickAdd = (type: 'gmail' | 'platform' | 'note' | 'finance' | 'income' | 'deadline' | 'youtube' | 'microstock' | 'office' | 'dev-bug' | 'dev-idea' | 'dev-maint' | 'digital-product') => {
+    if (userRole === 'guest') return;
     if (type === 'dev-bug') {
       setDefaultDevType('Bug');
       setEditingDevItem(null);
@@ -568,7 +595,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         appData={appData}
-        userName="BigMA Studio"
+        userName={userRole === 'guest' ? 'Operator Guest' : 'BigMA Studio'}
         onLockApp={handleLockSession}
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenBackupModal={() => setIsBackupOpen(true)}
@@ -580,6 +607,8 @@ export default function App() {
           appData.deadlines
         )}
         onQuickAdd={handleQuickAdd}
+        userRole={userRole}
+        onSwitchToAdmin={handleSwitchToAdmin}
       />
 
       {/* Main Content Area with Sidebar Offset */}
@@ -707,6 +736,7 @@ export default function App() {
               <PlatformAccountsView
                 platformAccounts={appData.platformAccounts}
                 gmails={appData.gmails}
+                userRole={userRole}
                 onAddAccount={(platformName) => {
                   setEditingPlatform(null);
                   setPreselectedPlatformName(platformName);
@@ -720,6 +750,7 @@ export default function App() {
                   setIsPlatformModalOpen(true);
                 }}
                 onDeleteAccount={handleDeletePlatformAccount}
+                onUpdateAccount={handleSavePlatformAccount}
                 onAddNoteForAccount={(platformAccountId) => {
                   setEditingNote(null);
                   setPreselectedNotePlatformId(platformAccountId);
@@ -750,17 +781,21 @@ export default function App() {
                 onSaveSchedule={handleSaveYoutubeSchedule}
                 onSaveAllSchedules={handleSaveAllYoutubeSchedules}
                 onAddYoutubeAccount={() => {
+                  if (userRole === 'guest') return;
                   setEditingPlatform(null);
                   setPreselectedPlatformName('YouTube');
                   setPreselectedGmailId(undefined);
                   setIsPlatformModalOpen(true);
                 }}
                 onEditPlatformAccount={(account) => {
+                  if (userRole === 'guest') return;
                   setEditingPlatform(account);
                   setPreselectedPlatformName(undefined);
                   setPreselectedGmailId(undefined);
                   setIsPlatformModalOpen(true);
                 }}
+                onUpdateAccount={handleSavePlatformAccount}
+                userRole={userRole}
               />
             </motion.div>
           )}
@@ -781,17 +816,21 @@ export default function App() {
                 onSaveMicrostockItem={handleSaveMicrostockItem}
                 onSaveAllMicrostockItems={handleSaveAllMicrostockItems}
                 onAddMicrostockAccount={(plat) => {
+                  if (userRole === 'guest') return;
                   setEditingPlatform(null);
                   setPreselectedPlatformName(plat || 'Adobe Stock');
                   setPreselectedGmailId(undefined);
                   setIsPlatformModalOpen(true);
                 }}
                 onEditPlatformAccount={(account) => {
+                  if (userRole === 'guest') return;
                   setEditingPlatform(account);
                   setPreselectedPlatformName(undefined);
                   setPreselectedGmailId(undefined);
                   setIsPlatformModalOpen(true);
                 }}
+                onUpdateAccount={handleSavePlatformAccount}
+                userRole={userRole}
               />
             </motion.div>
           )}

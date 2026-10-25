@@ -3,8 +3,10 @@ import { motion } from 'motion/react';
 import { 
   PlatformAccount, 
   GmailAccount, 
-  MicrostockItem 
+  MicrostockItem,
+  UserRole
 } from '../../types';
+import { maskEmail } from '../../utils/maskUtils';
 import { 
   Layers, 
   Save, 
@@ -22,7 +24,10 @@ import {
   Image as ImageIcon,
   Palette,
   ArrowUpDown,
-  Filter
+  Filter,
+  Shield,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface MicrostockDataViewProps {
@@ -33,6 +38,8 @@ interface MicrostockDataViewProps {
   onSaveAllMicrostockItems?: (items: MicrostockItem[]) => void;
   onAddMicrostockAccount: (defaultPlatform?: string) => void;
   onEditPlatformAccount?: (account: PlatformAccount) => void;
+  onUpdateAccount?: (account: PlatformAccount) => void;
+  userRole?: UserRole;
 }
 
 // Known microstock platforms
@@ -55,16 +62,19 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
   onSaveAllMicrostockItems,
   onAddMicrostockAccount,
   onEditPlatformAccount,
+  onUpdateAccount,
+  userRole,
 }) => {
   // 1. Filter accounts that belong to Microstock (exclude YouTube unless explicitly named stock)
   const microstockAccounts = useMemo(() => {
     return platformAccounts.filter(p => {
+      if (userRole === 'guest' && p.isVisible === false) return false;
       const plat = (p.platform || '').trim();
       // YouTube is handled in Penjadwalan YouTube
       if (plat.toLowerCase() === 'youtube') return false;
       return true;
     });
-  }, [platformAccounts]);
+  }, [platformAccounts, userRole]);
 
   // 2. Map Gmail dictionary
   const gmailMap = useMemo(() => {
@@ -312,16 +322,25 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
               <span>Simpan Semua</span>
             </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onAddMicrostockAccount('Adobe Stock')}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-indigo-900/30 transition-all cursor-pointer ring-1 ring-indigo-400/40"
-              id="ms-add-account-btn"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Akun Microstock</span>
-            </motion.button>
+            {userRole !== 'guest' && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onAddMicrostockAccount('Adobe Stock')}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-indigo-900/30 transition-all cursor-pointer ring-1 ring-indigo-400/40"
+                id="ms-add-account-btn"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Akun Microstock</span>
+              </motion.button>
+            )}
+
+            {userRole === 'guest' && (
+              <div className="px-3 py-2 rounded-xl bg-neutral-950/80 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 shadow-inner">
+                <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Mode Guest (Operator)</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -365,6 +384,19 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Guest Mode Informational Banner */}
+      {userRole === 'guest' && (
+        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-200 shadow-sm">
+          <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
+          <p className="flex-1 leading-relaxed">
+            <strong>Mode Guest (Operator Microstock):</strong> Anda dapat mengedit &amp; menyimpan <strong>Jumlah Item, New, Reject, Konsentrasi Akun, dan Aksi Simpan</strong>. Kredensial akun (password/2FA) terproteksi dan alamat Gmail disamarkan (<span className="text-amber-300 font-mono font-bold">******</span>).
+          </p>
+          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30 whitespace-nowrap">
+            Guest Operator
+          </span>
+        </div>
+      )}
 
       {/* Control Bar: Search & Platform Filters */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-950/80 border border-[#262626]">
@@ -492,31 +524,39 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                     >
                       {/* Column 1: Master Gmail */}
                       <td className="py-3.5 px-4 align-top">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                            <span className="font-mono font-bold text-neutral-200 truncate max-w-[170px]" title={gmail?.email || 'Belum Terhubung'}>
-                              {gmail?.email || 'Tidak ada Gmail'}
-                            </span>
-                            {gmail?.email && (
-                              <button
-                                type="button"
-                                onClick={() => handleCopyEmail(gmail.email, `ms_gm_${platId}`)}
-                                className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
-                                title="Salin Email Master"
-                              >
-                                {copiedId === `ms_gm_${platId}` ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
+                        {(() => {
+                          const rawEmail = gmail?.email;
+                          const isMasked = userRole === 'guest';
+                          const displayEmail = isMasked ? maskEmail(rawEmail) : (rawEmail || 'Tidak ada Gmail');
+
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                                <span className="font-mono font-bold text-neutral-200 truncate max-w-[170px]" title={isMasked ? 'Gmail disamarkan untuk keamanan (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
+                                  {displayEmail}
+                                </span>
+                                {rawEmail && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyEmail(displayEmail, `ms_gm_${platId}`)}
+                                    className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+                                    title={isMasked ? 'Salin Email Disamarkan' : 'Salin Email Master'}
+                                  >
+                                    {copiedId === `ms_gm_${platId}` ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
                                 )}
-                              </button>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-neutral-500 font-mono">
-                            Master ID: {account.gmailId.slice(0, 10)}...
-                          </p>
-                        </div>
+                              </div>
+                              <p className="text-[10px] text-neutral-500 font-mono">
+                                {isMasked ? 'Master ID: ******' : `Master ID: ${account.gmailId.slice(0, 10)}...`}
+                              </p>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Column 2: Platform & Akun */}
@@ -533,6 +573,29 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                               <p className="font-sans font-black text-sm text-white mt-1 hover:text-indigo-300 transition-colors">
                                 {account.accountName}
                               </p>
+                              {/* PIC & Visibility - Inline Edit */}
+                              {userRole !== 'guest' ? (
+                                <div className="space-y-1 mt-1">
+                                  <input
+                                    type="text"
+                                    defaultValue={account.pic || ''}
+                                    placeholder="Input PIC..."
+                                    onBlur={(e) => onUpdateAccount?.({ ...account, pic: e.target.value })}
+                                    className="w-full text-[10px] bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-amber-400 focus:border-amber-500"
+                                  />
+                                  <button
+                                    onClick={() => onUpdateAccount?.({ ...account, isVisible: account.isVisible === false ? true : false })}
+                                    className={`flex items-center gap-1 text-[10px] font-bold ${account.isVisible !== false ? 'text-emerald-400' : 'text-neutral-500'}`}
+                                  >
+                                    {account.isVisible !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                    {account.isVisible !== false ? 'Tampil' : 'Sembunyi'}
+                                  </button>
+                                </div>
+                              ) : (
+                                account.pic && (
+                                  <p className="text-[10px] text-amber-400 font-bold mt-0.5">PIC: {account.pic}</p>
+                                )
+                              )}
                               <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1">
                                 <span>{account.usernameOrHandle || '@account'}</span>
                                 {account.channelOrProfileUrl && (
@@ -549,7 +612,7 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                               </p>
                             </div>
 
-                            {onEditPlatformAccount && (
+                            {onEditPlatformAccount && userRole !== 'guest' && (
                               <button
                                 type="button"
                                 onClick={() => onEditPlatformAccount(account)}

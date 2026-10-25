@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlatformAccount, GmailAccount } from '../../types';
-import { X, Save, Layers, Mail, Shield, Check } from 'lucide-react';
+import { X, Save, Layers, Mail, Shield, Check, Eye, EyeOff } from 'lucide-react';
 
 interface PlatformAccountModalProps {
   isOpen: boolean;
@@ -43,6 +43,8 @@ export const PlatformAccountModal: React.FC<PlatformAccountModalProps> = ({
   const [status, setStatus] = useState<'Aktif' | 'Review' | 'Suspended' | 'Nonaktif'>('Aktif');
   const [niche, setNiche] = useState('');
   const [notes, setNotes] = useState('');
+  const [pic, setPic] = useState('');
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +71,8 @@ export const PlatformAccountModal: React.FC<PlatformAccountModalProps> = ({
       setStatus(initialData.status);
       setNiche(initialData.niche || '');
       setNotes(initialData.notes || '');
+      setPic(initialData.pic || '');
+      setIsVisible(initialData.isVisible !== false);
     } else {
       setGmailId(preselectedGmailId || (gmails.length > 0 ? gmails[0].id : ''));
       const defaultPlat = (typeof preselectedPlatform === 'string' && preselectedPlatform) 
@@ -84,6 +88,8 @@ export const PlatformAccountModal: React.FC<PlatformAccountModalProps> = ({
       setStatus('Aktif');
       setNiche('');
       setNotes('');
+      setPic('');
+      setIsVisible(true);
     }
   }, [initialData, preselectedGmailId, preselectedPlatform, gmails, isOpen]);
 
@@ -116,6 +122,8 @@ export const PlatformAccountModal: React.FC<PlatformAccountModalProps> = ({
       status,
       niche: niche.trim(),
       notes: notes.trim(),
+      pic: pic.trim(),
+      isVisible,
       createdAt: initialData ? initialData.createdAt : todayStr,
     };
 
@@ -353,6 +361,47 @@ export const PlatformAccountModal: React.FC<PlatformAccountModalProps> = ({
                     className="w-full px-3 py-2 text-xs bg-neutral-950 text-neutral-100 placeholder:text-neutral-600 border border-[#262626] rounded-lg focus:outline-hidden focus:border-amber-500/60 transition-colors"
                     id="platform-input-niche"
                   />
+                </div>
+              </div>
+
+              {/* PIC & Visibility Toggle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                    Nama PIC (Penanggung Jawab)
+                  </label>
+                  <input
+                    type="text"
+                    value={pic}
+                    onChange={(e) => setPic(e.target.value)}
+                    placeholder="misal: Wahyu / Ilman / Tim YouTube..."
+                    className="w-full px-3 py-2 text-xs bg-neutral-950 text-neutral-100 placeholder:text-neutral-600 border border-[#262626] rounded-lg focus:outline-hidden focus:border-amber-500/60 transition-colors"
+                    id="platform-input-pic"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                    Visibilitas di Menu Guest
+                  </label>
+                  <div className="flex items-center justify-between p-2 bg-neutral-950 border border-[#262626] rounded-lg">
+                    <span className="text-xs text-neutral-300">
+                      {isVisible ? 'Ditampilkan' : 'Disembunyikan'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsVisible(!isVisible)}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                        isVisible
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                      }`}
+                      id="platform-visibility-toggle"
+                    >
+                      {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                      <span>{isVisible ? 'Tampil' : 'Sembunyi'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

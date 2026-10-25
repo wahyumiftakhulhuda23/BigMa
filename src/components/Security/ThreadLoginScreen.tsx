@@ -8,11 +8,21 @@ import {
   AlertCircle, 
   Link as LinkIcon, 
   KeyRound, 
-  Shield,
-  Smartphone,
-  Globe2,
-  HelpCircle
+  Shield, 
+  Smartphone, 
+  Globe2, 
+  HelpCircle,
+  Users,
+  UserCheck,
+  EyeOff,
+  PlaySquare,
+  Image as ImageIcon,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  Check
 } from 'lucide-react';
+import { UserRole } from '../../types';
 
 interface QuestionItem {
   id: string;
@@ -69,12 +79,15 @@ const DATE_OPTIONS: DateOption[] = [
 const REQUIRED_ACCESS_CODE = '2000';
 
 interface ThreadLoginScreenProps {
-  onUnlock: () => void;
+  onUnlock: (role: UserRole) => void;
 }
 
 export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({ 
   onUnlock 
 }) => {
+  // Mode selection: Admin (full master) or Guest (restricted content operator)
+  const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('admin');
+
   // Access Code State (PIN: 2000)
   const [accessCode, setAccessCode] = useState('');
   
@@ -138,11 +151,13 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
   };
 
   useEffect(() => {
-    updateLines();
-    const handleResize = () => updateLines();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [connections, selectedQuestion]);
+    if (activeRoleTab === 'admin') {
+      updateLines();
+      const handleResize = () => updateLines();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, [connections, selectedQuestion, activeRoleTab]);
 
   // Handle clicking left item
   const handleSelectQuestion = (qId: string) => {
@@ -209,8 +224,8 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
     });
   };
 
-  // Verify quiz answers and PIN code
-  const handleVerifyAndUnlock = (e?: React.FormEvent) => {
+  // Verify quiz answers and PIN code for Admin mode
+  const handleVerifyAndUnlockAdmin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     // 1. Verify Access Code
@@ -244,10 +259,10 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
       setIsUnlocked(true);
       setStatusState({
         type: 'success',
-        message: 'Kode & Kuis Benang Valid! Membuka Brankas Cloud BigMA...',
+        message: 'Kode & Kuis Benang Valid! Membuka Brankas Admin BigMA...',
       });
       setTimeout(() => {
-        onUnlock();
+        onUnlock('admin');
       }, 700);
     } else {
       setStatusState({
@@ -255,6 +270,18 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
         message: `Pasangan benang belum tepat (${correctCount}/4 benar). Periksa kembali tanggal masing-masing peristiwa!`,
       });
     }
+  };
+
+  // Handle immediate entry for Guest mode
+  const handleUnlockGuest = () => {
+    setIsUnlocked(true);
+    setStatusState({
+      type: 'success',
+      message: 'Memasuki Mode Guest / Operator Konten...',
+    });
+    setTimeout(() => {
+      onUnlock('guest');
+    }, 400);
   };
 
   const totalConnected = Object.keys(connections).length;
@@ -285,275 +312,413 @@ export const ThreadLoginScreen: React.FC<ThreadLoginScreenProps> = ({
             <div className={`p-3 rounded-2xl border transition-all duration-300 ${
               isUnlocked 
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/20 scale-110' 
-                : 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10'
+                : activeRoleTab === 'admin'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10'
+                : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
             }`}>
-              {isUnlocked ? <Unlock className="w-7 h-7 stroke-[2.5]" /> : <Lock className="w-7 h-7 stroke-[2.5]" />}
+              {isUnlocked ? (
+                <Unlock className="w-7 h-7 stroke-[2.5]" />
+              ) : activeRoleTab === 'admin' ? (
+                <Lock className="w-7 h-7 stroke-[2.5]" />
+              ) : (
+                <Users className="w-7 h-7 stroke-[2.5]" />
+              )}
             </div>
             <div className="text-left">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Big<span className="text-amber-400">MA</span>
                 <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700">
-                  Cloud Security Gate
+                  {activeRoleTab === 'admin' ? 'Admin Master Gate' : 'Guest Operator Gate'}
                 </span>
               </h1>
               <p className="text-xs text-neutral-400">
-                Masukkan kode akses rahasia dan pasangkan 4 benang pengaman untuk membuka brankas cloud.
+                {activeRoleTab === 'admin' 
+                  ? 'Mode Admin: Akses penuh keseluruhan akun, masukkan kode akses dan kuis benang.' 
+                  : 'Mode Guest: Khusus operator Penjadwalan YouTube & Input Data Microstock.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Section 1: Kode Akses Keamanan */}
-        <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <KeyRound className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white">1. Kode Akses Brankas</p>
-              <p className="text-[11px] text-neutral-400">Akses keamanan: <span className="font-mono text-amber-400 font-bold">Terproteksi Rahasia</span></p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={10}
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-              placeholder="Masukkan kode akses..."
-              className="w-full sm:w-44 bg-neutral-900 border border-[#333] focus:border-amber-400 rounded-lg px-3 py-2 text-xs font-mono font-bold text-center tracking-widest text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
-              id="security-gate-pin-input"
-            />
-            {accessCode === REQUIRED_ACCESS_CODE && (
-              <span className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30 text-xs font-bold shrink-0">
-                ✓ Valid
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Status Notification */}
-        <motion.div 
-          animate={{ 
-            scale: statusState.type === 'error' ? [1, 1.02, 0.98, 1] : 1 
-          }}
-          transition={{ duration: 0.3 }}
-          className={`p-3 rounded-xl text-xs flex items-center justify-between gap-3 border transition-colors ${
-            statusState.type === 'success'
-              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-              : statusState.type === 'error'
-              ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-              : 'bg-neutral-950 border-[#262626] text-neutral-300'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            {statusState.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : statusState.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <LinkIcon className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
-            <span className="font-medium">{statusState.message}</span>
-          </div>
-
-          <div className="text-[11px] font-mono font-bold text-neutral-400 shrink-0 bg-neutral-900 px-2.5 py-1 rounded-lg border border-[#333]">
-            {totalConnected}/4 Benang
-          </div>
-        </motion.div>
-
-        {/* Section 2: Interactive Thread Quiz Area */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs px-1 text-neutral-400">
-            <span className="font-bold text-white">2. Kuis Benang Pengaman:</span>
-            <span className="text-[11px]">Klik nama di kiri lalu klik tanggal yang cocok di kanan</span>
-          </div>
-
-          <div 
-            ref={containerRef} 
-            className="relative min-h-[300px] bg-neutral-950/90 rounded-xl border border-[#262626] p-4 sm:p-6 flex justify-between items-center"
-          >
-            {/* SVG Canvas for Strings / Yarn Lines */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-              <defs>
-                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
-
-              {lines.map((line) => {
-                // Curved bezier path
-                const dx = Math.abs(line.x2 - line.x1);
-                const cp1x = line.x1 + dx * 0.45;
-                const cp1y = line.y1;
-                const cp2x = line.x2 - dx * 0.45;
-                const cp2y = line.y2;
-
-                const pathData = `M ${line.x1} ${line.y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${line.x2} ${line.y2}`;
-
-                return (
-                  <g key={`${line.qId}-${line.ansId}`}>
-                    {/* Shadow / Glow Line */}
-                    <path
-                      d={pathData}
-                      fill="none"
-                      stroke={line.color}
-                      strokeWidth="5"
-                      strokeOpacity="0.4"
-                      filter="url(#glow)"
-                    />
-                    {/* Core Yarn Cord */}
-                    <path
-                      d={pathData}
-                      fill="none"
-                      stroke={line.color}
-                      strokeWidth="2.5"
-                      strokeDasharray="4 2"
-                      className="animate-pulse"
-                    />
-                    {/* End anchor pin rings */}
-                    <circle cx={line.x1} cy={line.y1} r="4" fill={line.color} />
-                    <circle cx={line.x2} cy={line.y2} r="4" fill={line.color} />
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* Left Column: Questions / Events */}
-            <div className="flex flex-col gap-3.5 z-20 w-[46%] sm:w-60">
-              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mb-1 font-bold">
-                Nama / Peristiwa
-              </p>
-              {QUESTIONS.map((q) => {
-                const isSelected = selectedQuestion === q.id;
-                const isConnected = !!connections[q.id];
-
-                return (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    key={q.id}
-                    type="button"
-                    onClick={() => handleSelectQuestion(q.id)}
-                    className={`relative p-3 rounded-xl text-left text-xs font-semibold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-neutral-800 border-amber-400 text-white shadow-lg ring-1 ring-amber-400'
-                        : isConnected
-                        ? 'bg-neutral-900 border-neutral-700 text-neutral-200'
-                        : 'bg-neutral-900/60 border-[#262626] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <div 
-                        className="w-2.5 h-2.5 rounded-full shrink-0" 
-                        style={{ backgroundColor: q.color }}
-                      />
-                      <span className="truncate">{q.label}</span>
-                    </div>
-
-                    {/* Left Pin Anchor Point */}
-                    <div
-                      ref={(el) => { leftPinRefs.current[q.id] = el; }}
-                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${
-                        isConnected
-                          ? 'border-white bg-amber-400'
-                          : isSelected
-                          ? 'border-amber-400 bg-amber-400/30 animate-ping'
-                          : 'border-neutral-600 bg-neutral-950'
-                      }`}
-                    />
-
-                    {/* Disconnect button if connected */}
-                    {isConnected && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleDisconnect(q.id, e)}
-                        className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] hover:bg-rose-600 shadow-sm"
-                        title="Lepas benang"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            {/* Right Column: Date Targets */}
-            <div className="flex flex-col gap-3.5 z-20 w-[46%] sm:w-60">
-              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider mb-1 font-bold text-right">
-                Pilihan Tanggal
-              </p>
-              {DATE_OPTIONS.map((opt) => {
-                const connectedQId = Object.keys(connections).find(qId => connections[qId] === opt.id);
-                const isConnected = !!connectedQId;
-                const connectedQData = connectedQId ? QUESTIONS.find(q => q.id === connectedQId) : null;
-
-                return (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleSelectDate(opt.id)}
-                    className={`relative p-3 rounded-xl text-right text-xs font-mono font-bold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
-                      isConnected
-                        ? 'bg-neutral-900 border-neutral-700 text-white'
-                        : selectedQuestion
-                        ? 'bg-neutral-900 border-dashed border-amber-500/40 text-neutral-300 hover:border-amber-400 hover:bg-neutral-800'
-                        : 'bg-neutral-900/60 border-[#262626] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700'
-                    }`}
-                  >
-                    {/* Right Pin Anchor Point */}
-                    <div
-                      ref={(el) => { rightPinRefs.current[opt.id] = el; }}
-                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${
-                        isConnected
-                          ? 'border-white'
-                          : selectedQuestion
-                          ? 'border-amber-400 bg-amber-400/20'
-                          : 'border-neutral-600 bg-neutral-950'
-                      }`}
-                      style={{
-                        backgroundColor: connectedQData ? connectedQData.color : undefined,
-                      }}
-                    />
-
-                    <span className="truncate">{opt.dateText}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls & Unlock Button */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+        {/* Role Mode Switcher Tabs */}
+        <div className="grid grid-cols-2 p-1.5 bg-neutral-950 border border-[#262626] rounded-xl gap-1.5 shadow-inner">
           <button
             type="button"
-            onClick={handleReset}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-[#262626] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            id="reset-yarn-btn"
+            onClick={() => setActiveRoleTab('admin')}
+            className={`flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeRoleTab === 'admin'
+                ? 'bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/25 ring-1 ring-amber-400'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900/60'
+            }`}
+            id="tab-login-admin"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Reset Benang</span>
+            <Shield className="w-4 h-4 shrink-0" />
+            <div className="text-left leading-tight">
+              <span className="block">Menu Admin</span>
+              <span className={`text-[10px] block font-mono font-normal ${activeRoleTab === 'admin' ? 'text-neutral-900 font-semibold' : 'text-neutral-500'}`}>
+                Kode Akses + Kuis Benang
+              </span>
+            </div>
           </button>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             type="button"
-            onClick={handleVerifyAndUnlock}
-            className="w-full sm:w-auto flex-1 py-3 px-6 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
-            id="verify-unlock-btn"
+            onClick={() => {
+              setActiveRoleTab('guest');
+              onUnlock('guest');
+            }}
+            className={`flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeRoleTab === 'guest'
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900/60'
+            }`}
+            id="tab-login-guest"
           >
-            <Shield className="w-4 h-4" />
-            <span>Buka Brankas Cloud BigMA</span>
-          </motion.button>
+            <Users className="w-4 h-4 shrink-0" />
+            <div className="text-left leading-tight">
+              <span className="block">Menu Guest</span>
+              <span className={`text-[10px] block font-mono font-normal ${activeRoleTab === 'guest' ? 'text-indigo-200' : 'text-neutral-500'}`}>
+                YouTube &amp; Microstock
+              </span>
+            </div>
+          </button>
         </div>
+
+        {/* ---------------------------------------------------- */}
+        {/* VIEW 1: GUEST MODE LOGIN PANEL                      */}
+        {/* ---------------------------------------------------- */}
+        {activeRoleTab === 'guest' && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-4"
+          >
+            <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
+              <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                <span>Portal Operator Konten &amp; Microstock (Guest Mode)</span>
+              </div>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Mode Guest dirancang untuk tim konten atau operator harian yang bertugas mengelola jadwal upload serta metrik microstock tanpa memerlukan kode akses admin.
+              </p>
+
+              {/* Permissions & Capabilities Breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                {/* Allowed Actions */}
+                <div className="p-3 rounded-lg bg-neutral-950/80 border border-emerald-500/30 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Fitur yang Dapat Diedit:</span>
+                  </div>
+                  <ul className="text-[11px] text-neutral-300 space-y-1 pl-1 font-sans">
+                    <li className="flex items-start gap-1.5">
+                      <PlaySquare className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <span><strong>Penjadwalan YouTube:</strong> Jadwal Upload &amp; Status, Draft, Siap Upload, Monet, Jumlah Bahan, Keterangan, Aksi.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                      <span><strong>Data Microstock:</strong> Jumlah Item, New, Reject, Konsentrasi Akun, Aksi.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Restricted & Masked */}
+                <div className="p-3 rounded-lg bg-neutral-950/80 border border-rose-500/30 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-rose-400 font-bold text-xs">
+                    <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                    <span>Proteksi Kredensial &amp; Keamanan:</span>
+                  </div>
+                  <ul className="text-[11px] text-neutral-300 space-y-1 pl-1 font-sans">
+                    <li className="flex items-start gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
+                      <span><strong>Kredensial Akun:</strong> Tidak bisa diedit, hanya admin yang dapat mengubah kredensial.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
+                      <span><strong>Gmail Disamarkan:</strong> Email master hanya tampil separuh, sisanya disamarkan (<code className="text-amber-300 font-mono text-[10px]">wah******@gmail.com</code>).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
+                      <span><strong>Proteksi Menu:</strong> Menu Keuangan, Master Gmail, Office, &amp; Project Dev disembunyikan.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Guest Entry CTA Button */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              type="button"
+              onClick={handleUnlockGuest}
+              className="w-full py-3.5 px-6 bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2.5 cursor-pointer transition-all"
+              id="btn-login-guest-submit"
+            >
+              <UserCheck className="w-5 h-5" />
+              <span>Masuk Sebagai Guest (Operator YouTube &amp; Microstock)</span>
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* VIEW 2: ADMIN MODE (PIN 2000 + KUIS BENANG)         */}
+        {/* ---------------------------------------------------- */}
+        {activeRoleTab === 'admin' && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-4"
+          >
+            {/* Section 1: Kode Akses Keamanan */}
+            <div className="p-4 bg-neutral-950 border border-[#262626] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">1. Masukkan Kode Akses Brankas</p>
+                  <p className="text-[11px] text-neutral-400">Otorisasi Admin Master: <span className="font-mono text-amber-400 font-bold">PIN Terproteksi</span></p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value)}
+                  placeholder="Masukkan PIN akses..."
+                  className="w-full sm:w-44 bg-neutral-900 border border-[#333] focus:border-amber-400 rounded-lg px-3 py-2 text-xs font-mono font-bold text-center tracking-widest text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
+                  id="security-gate-pin-input"
+                />
+                {accessCode === REQUIRED_ACCESS_CODE && (
+                  <span className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30 text-xs font-bold shrink-0">
+                    ✓ Valid
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Status Notification */}
+            <motion.div 
+              animate={{ 
+                scale: statusState.type === 'error' ? [1, 1.02, 0.98, 1] : 1 
+              }}
+              transition={{ duration: 0.3 }}
+              className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 transition-colors ${
+                statusState.type === 'error' 
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' 
+                  : statusState.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-neutral-950 border-[#262626] text-neutral-400'
+              }`}
+            >
+              {statusState.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+              {statusState.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+              {statusState.type === 'idle' && <HelpCircle className="w-4 h-4 text-amber-400 shrink-0" />}
+              <span className="flex-1 font-medium">{statusState.message}</span>
+            </motion.div>
+
+            {/* Section 2: Kuis Benang Pengaman */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    2. Kuis Benang Pengaman ({totalConnected}/4 Terhubung)
+                  </span>
+                </div>
+                <span className="text-[11px] text-neutral-400 font-mono">
+                  Klik peristiwa &rarr; klik tanggal yang cocok
+                </span>
+              </div>
+
+              {/* Yarn Interactive Board */}
+              <div 
+                ref={containerRef}
+                className="relative bg-neutral-950 border border-[#262626] rounded-xl p-4 sm:p-5 min-h-[290px] flex items-center justify-between gap-4 overflow-hidden"
+                id="yarn-board-interactive"
+              >
+                {/* SVG Lines Layer */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                  <defs>
+                    {QUESTIONS.map(q => (
+                      <filter key={`glow-${q.id}`} id={`glow-${q.id}`} x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={q.color} floodOpacity="0.8" />
+                      </filter>
+                    ))}
+                  </defs>
+                  {lines.map((line) => {
+                    const dx = line.x2 - line.x1;
+                    const curveIntensity = Math.min(Math.abs(dx) * 0.45, 120);
+                    const pathData = `M ${line.x1} ${line.y1} C ${line.x1 + curveIntensity} ${line.y1}, ${line.x2 - curveIntensity} ${line.y2}, ${line.x2} ${line.y2}`;
+
+                    return (
+                      <g key={`${line.qId}-${line.ansId}`}>
+                        {/* Glow Line */}
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={line.color}
+                          strokeWidth="7"
+                          strokeOpacity="0.3"
+                          strokeLinecap="round"
+                        />
+                        {/* Solid Yarn Line */}
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={line.color}
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          className="transition-all duration-300"
+                        />
+                        {/* Center Knot Pin */}
+                        <circle
+                          cx={(line.x1 + line.x2) / 2}
+                          cy={(line.y1 + line.y2) / 2}
+                          r="4"
+                          fill="#FFFFFF"
+                          stroke={line.color}
+                          strokeWidth="2"
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+
+                {/* Left Side: Questions */}
+                <div className="flex flex-col gap-2.5 w-1/2 max-w-[260px] z-20">
+                  {QUESTIONS.map((q) => {
+                    const isSelected = selectedQuestion === q.id;
+                    const isConnected = !!connections[q.id];
+
+                    return (
+                      <motion.button
+                        key={q.id}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        type="button"
+                        onClick={() => handleSelectQuestion(q.id)}
+                        className={`relative p-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
+                          isSelected
+                            ? 'bg-neutral-800 text-white shadow-lg ring-2'
+                            : isConnected
+                            ? 'bg-neutral-900 border-neutral-700 text-neutral-200'
+                            : 'bg-neutral-900/60 border-[#262626] text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/80'
+                        }`}
+                        style={{
+                          borderColor: isSelected ? q.color : undefined,
+                        }}
+                      >
+                        <span className="truncate">{q.label}</span>
+
+                        {/* Anchor Dot Pin */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isConnected && (
+                            <span 
+                              onClick={(e) => handleDisconnect(q.id, e)}
+                              className="w-4 h-4 rounded-full bg-neutral-800 hover:bg-rose-500/20 text-neutral-400 hover:text-rose-400 flex items-center justify-center text-[10px] transition-colors"
+                              title="Lepas benang"
+                            >
+                              &times;
+                            </span>
+                          )}
+                          <div
+                            ref={(el) => { leftPinRefs.current[q.id] = el; }}
+                            className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center ${
+                              isSelected
+                                ? 'scale-125 border-white'
+                                : isConnected
+                                ? 'border-neutral-400'
+                                : 'border-neutral-600 bg-neutral-950'
+                            }`}
+                            style={{
+                              backgroundColor: isConnected || isSelected ? q.color : undefined,
+                            }}
+                          />
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Right Side: Date Options */}
+                <div className="flex flex-col gap-2.5 w-1/2 max-w-[260px] z-20">
+                  {DATE_OPTIONS.map((opt) => {
+                    const connectedQId = Object.keys(connections).find(q => connections[q] === opt.id);
+                    const isConnected = !!connectedQId;
+                    const connectedQData = QUESTIONS.find(q => q.id === connectedQId);
+
+                    return (
+                      <motion.button
+                        key={opt.id}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        type="button"
+                        onClick={() => handleSelectDate(opt.id)}
+                        className={`relative p-3 rounded-xl text-right text-xs font-mono font-bold transition-all border flex items-center justify-between gap-2 cursor-pointer ${
+                          isConnected
+                            ? 'bg-neutral-900 border-neutral-700 text-white'
+                            : selectedQuestion
+                            ? 'bg-neutral-900 border-dashed border-amber-500/40 text-neutral-300 hover:border-amber-400 hover:bg-neutral-800'
+                            : 'bg-neutral-900/60 border-[#262626] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700'
+                        }`}
+                      >
+                        {/* Right Pin Anchor Point */}
+                        <div
+                          ref={(el) => { rightPinRefs.current[opt.id] = el; }}
+                          className={`w-3.5 h-3.5 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${
+                            isConnected
+                              ? 'border-white'
+                              : selectedQuestion
+                              ? 'border-amber-400 bg-amber-400/20'
+                              : 'border-neutral-600 bg-neutral-950'
+                          }`}
+                          style={{
+                            backgroundColor: connectedQData ? connectedQData.color : undefined,
+                          }}
+                        />
+
+                        <span className="truncate">{opt.dateText}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Controls & Unlock Button */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-[#262626] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                id="reset-yarn-btn"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reset Benang</span>
+              </button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={handleVerifyAndUnlockAdmin}
+                className="w-full sm:w-auto flex-1 py-3 px-6 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-neutral-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                id="verify-unlock-btn"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Buka Brankas Admin BigMA</span>
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Multi-Device Lifetime Cloud Badges */}
         <div className="pt-2 border-t border-[#262626] grid grid-cols-2 gap-2 text-[10px] text-neutral-400">

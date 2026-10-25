@@ -4,9 +4,11 @@ import {
   PlatformAccount, 
   GmailAccount, 
   YoutubeScheduleItem, 
-  MonetizationStatus 
+  MonetizationStatus,
+  UserRole
 } from '../../types';
 import { detectScheduleStatus } from '../../utils/scheduleDateDetector';
+import { maskEmail } from '../../utils/maskUtils';
 import { 
   PlaySquare, 
   Calendar, 
@@ -30,7 +32,10 @@ import {
   Info,
   ChevronRight,
   Flame,
-  ArrowUpDown
+  ArrowUpDown,
+  Shield,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface YoutubeScheduleViewProps {
@@ -39,8 +44,10 @@ interface YoutubeScheduleViewProps {
   schedules: YoutubeScheduleItem[];
   onSaveSchedule: (schedule: YoutubeScheduleItem) => void;
   onSaveAllSchedules?: (schedules: YoutubeScheduleItem[]) => void;
-  onAddYoutubeAccount: () => void;
+  onAddYoutubeAccount?: () => void;
   onEditPlatformAccount?: (account: PlatformAccount) => void;
+  onUpdateAccount?: (account: PlatformAccount) => void;
+  userRole?: UserRole;
 }
 
 export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
@@ -51,15 +58,18 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
   onSaveAllSchedules,
   onAddYoutubeAccount,
   onEditPlatformAccount,
+  onUpdateAccount,
+  userRole,
 }) => {
   // 1. Filter accounts that belong to YouTube
   const youtubeAccounts = useMemo(() => {
     return platformAccounts.filter(p => {
+      if (userRole === 'guest' && p.isVisible === false) return false;
       const plat = (p.platform || '').toLowerCase();
       const custom = (p.customPlatformName || '').toLowerCase();
       return plat.includes('youtube') || custom.includes('youtube') || p.platform === 'YouTube';
     });
-  }, [platformAccounts]);
+  }, [platformAccounts, userRole]);
 
   // 2. Map Gmail dictionary for quick lookup
   const gmailMap = useMemo(() => {
@@ -303,16 +313,25 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
               <span>Simpan Semua</span>
             </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onAddYoutubeAccount}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-red-900/30 transition-all cursor-pointer ring-1 ring-red-400/40"
-              id="yt-add-channel-btn"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Channel YouTube</span>
-            </motion.button>
+            {userRole !== 'guest' && onAddYoutubeAccount && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onAddYoutubeAccount}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-sans font-black flex items-center gap-2 shadow-lg shadow-red-900/30 transition-all cursor-pointer ring-1 ring-red-400/40"
+                id="yt-add-channel-btn"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Channel YouTube</span>
+              </motion.button>
+            )}
+
+            {userRole === 'guest' && (
+              <div className="px-3 py-2 rounded-xl bg-neutral-950/80 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 shadow-inner">
+                <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Mode Guest (Operator)</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -358,6 +377,19 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Guest Mode Informational Banner */}
+      {userRole === 'guest' && (
+        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-200 shadow-sm">
+          <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
+          <p className="flex-1 leading-relaxed">
+            <strong>Mode Guest (Operator YouTube):</strong> Anda dapat mengedit &amp; menyimpan <strong>Jadwal Upload &amp; Status, Draft, Siap Upload, Monet, Jumlah Bahan, Keterangan, dan Aksi Simpan</strong>. Kredensial akun (password/2FA) terproteksi dan alamat Gmail disamarkan (<span className="text-amber-300 font-mono font-bold">******</span>).
+          </p>
+          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30 whitespace-nowrap">
+            Guest Operator
+          </span>
+        </div>
+      )}
 
       {/* Control Bar: Search & Filters */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-950/80 border border-[#262626]">
@@ -512,6 +544,29 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                                   {account.accountName}
                                 </span>
                               </p>
+                              {/* PIC & Visibility - Inline Edit */}
+                              {userRole !== 'guest' ? (
+                                <div className="space-y-1 mt-1">
+                                  <input
+                                    type="text"
+                                    defaultValue={account.pic || ''}
+                                    placeholder="Input PIC..."
+                                    onBlur={(e) => onUpdateAccount?.({ ...account, pic: e.target.value })}
+                                    className="w-full text-[10px] bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-amber-400 focus:border-amber-500"
+                                  />
+                                  <button
+                                    onClick={() => onUpdateAccount?.({ ...account, isVisible: account.isVisible === false ? true : false })}
+                                    className={`flex items-center gap-1 text-[10px] font-bold ${account.isVisible !== false ? 'text-emerald-400' : 'text-neutral-500'}`}
+                                  >
+                                    {account.isVisible !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                    {account.isVisible !== false ? 'Tampil' : 'Sembunyi'}
+                                  </button>
+                                </div>
+                              ) : (
+                                account.pic && (
+                                  <p className="text-[10px] text-amber-400 font-bold mt-0.5">PIC: {account.pic}</p>
+                                )
+                              )}
                               <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1">
                                 <span>{account.usernameOrHandle || '@channel'}</span>
                                 {account.channelOrProfileUrl && (
@@ -527,7 +582,7 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                                 )}
                               </p>
                             </div>
-                            {onEditPlatformAccount && (
+                            {onEditPlatformAccount && userRole !== 'guest' && (
                               <button
                                 type="button"
                                 onClick={() => onEditPlatformAccount(account)}
@@ -540,26 +595,33 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                           </div>
 
                           {/* Master Gmail Link Badge */}
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.8 rounded-md bg-neutral-950 border border-[#2a2a2a] text-[10px] text-neutral-300 font-mono">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                            <span className="truncate max-w-[140px]" title={gmail?.email || 'Belum Terhubung'}>
-                              {gmail?.email || 'Tidak ada Gmail'}
-                            </span>
-                            {gmail?.email && (
-                              <button
-                                type="button"
-                                onClick={() => handleCopyEmail(gmail.email, `gm_${platId}`)}
-                                className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
-                                title="Salin Email Master"
-                              >
-                                {copiedId === `gm_${platId}` ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
+                          {(() => {
+                            const rawEmail = gmail?.email;
+                            const isMasked = userRole === 'guest';
+                            const displayEmail = isMasked ? maskEmail(rawEmail) : (rawEmail || 'Tidak ada Gmail');
+                            return (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.8 rounded-md bg-neutral-950 border border-[#2a2a2a] text-[10px] text-neutral-300 font-mono">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                <span className="truncate max-w-[140px]" title={isMasked ? 'Gmail disamarkan untuk keamanan (Mode Guest)' : (rawEmail || 'Belum Terhubung')}>
+                                  {displayEmail}
+                                </span>
+                                {rawEmail && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyEmail(displayEmail, `gm_${platId}`)}
+                                    className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+                                    title={isMasked ? 'Salin Email Disamarkan' : 'Salin Email Master'}
+                                  >
+                                    {copiedId === `gm_${platId}` ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
                                 )}
-                              </button>
-                            )}
-                          </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
 

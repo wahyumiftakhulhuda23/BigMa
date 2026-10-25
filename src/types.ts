@@ -25,6 +25,8 @@ export interface PlatformAccount {
   status: 'Aktif' | 'Review' | 'Suspended' | 'Nonaktif';
   niche?: string;
   notes?: string;
+  pic?: string; // Nama PIC (Person In Charge)
+  isVisible?: boolean; // Tampilkan atau sembunyikan platform (default true)
   createdAt: string;
 }
 
@@ -181,6 +183,8 @@ export interface AppData {
   digitalProducts?: DigitalProductItem[];
   settings: AppSettings;
 }
+
+export type UserRole = 'admin' | 'guest';
 
 export type TopMode = 'freelance' | 'office' | 'project-dev' | 'digital-product';
 
