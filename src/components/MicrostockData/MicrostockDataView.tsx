@@ -27,8 +27,156 @@ import {
   Filter,
   Shield,
   Eye,
-  EyeOff
+  EyeOff,
+  Calendar,
+  AlertTriangle,
+  Clock,
+  UploadCloud
 } from 'lucide-react';
+
+export interface MicrostockScheduleStatus {
+  hasDate: boolean;
+  dateStr: string;
+  daysPassed: number | null;
+  isOverdue: boolean;
+  overdueDays: number;
+  label: string;
+  subtext: string;
+  badgeClass: string;
+  dotClass: string;
+}
+
+/**
+ * Detect upload schedule status over a 1-week (7 days) threshold.
+ * If > 7 days have passed since the last upload date, indicates overdue status.
+ */
+export function detectMicrostockUploadStatus(dateStr?: string): MicrostockScheduleStatus {
+  if (!dateStr || !dateStr.trim()) {
+    return {
+      hasDate: false,
+      dateStr: '',
+      daysPassed: null,
+      isOverdue: false,
+      overdueDays: 0,
+      label: 'Belum Diatur',
+      subtext: 'Klik untuk set tanggal',
+      badgeClass: 'bg-neutral-900 border-neutral-800 text-neutral-400',
+      dotClass: 'bg-neutral-600',
+    };
+  }
+
+  const parts = dateStr.trim().split(/[-/]/);
+  let parsedDate: Date | null = null;
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      parsedDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    } else if (parts[2].length === 4) {
+      // DD-MM-YYYY
+      parsedDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+    }
+  }
+  if (!parsedDate || isNaN(parsedDate.getTime())) {
+    parsedDate = new Date(dateStr);
+  }
+
+  if (isNaN(parsedDate.getTime())) {
+    return {
+      hasDate: false,
+      dateStr: dateStr,
+      daysPassed: null,
+      isOverdue: false,
+      overdueDays: 0,
+      label: 'Format Tidak Valid',
+      subtext: 'Pilih ulang tanggal',
+      badgeClass: 'bg-neutral-900 border-neutral-800 text-neutral-400',
+      dotClass: 'bg-neutral-600',
+    };
+  }
+
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const uploadMidnight = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysPassed = Math.round((todayMidnight.getTime() - uploadMidnight.getTime()) / msPerDay);
+
+  // Future date
+  if (daysPassed < 0) {
+    const futureDays = Math.abs(daysPassed);
+    return {
+      hasDate: true,
+      dateStr,
+      daysPassed,
+      isOverdue: false,
+      overdueDays: 0,
+      label: `📅 ${futureDays} Hari Lagi`,
+      subtext: 'Jadwal mendatang',
+      badgeClass: 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300',
+      dotClass: 'bg-indigo-400',
+    };
+  }
+
+  // Uploaded today
+  if (daysPassed === 0) {
+    return {
+      hasDate: true,
+      dateStr,
+      daysPassed: 0,
+      isOverdue: false,
+      overdueDays: 0,
+      label: '⚡ Upload Hari Ini',
+      subtext: 'Aktif (sisa 7 hari)',
+      badgeClass: 'bg-emerald-950/50 border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30',
+      dotClass: 'bg-emerald-400 animate-pulse',
+    };
+  }
+
+  // Overdue (> 7 days since last upload)
+  if (daysPassed > 7) {
+    const overdueDays = daysPassed - 7;
+    return {
+      hasDate: true,
+      dateStr,
+      daysPassed,
+      isOverdue: true,
+      overdueDays,
+      label: `⚠️ Terlewat ${overdueDays} Hari`,
+      subtext: `${daysPassed} hari sejak upload (lewat seminggu)`,
+      badgeClass: 'bg-rose-950/60 border-rose-500/70 text-rose-300 shadow-sm shadow-rose-900/40 ring-1 ring-rose-500/40',
+      dotClass: 'bg-rose-500 animate-pulse',
+    };
+  }
+
+  // Exactly 7 days (last day of the week)
+  if (daysPassed === 7) {
+    return {
+      hasDate: true,
+      dateStr,
+      daysPassed: 7,
+      isOverdue: false,
+      overdueDays: 0,
+      label: '⏰ Batas 7 Hari (Hari Ini)',
+      subtext: 'Waktunya upload minggu ini',
+      badgeClass: 'bg-amber-950/50 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30',
+      dotClass: 'bg-amber-400 animate-ping',
+    };
+  }
+
+  // Within 1-6 days
+  const remainingInWeek = 7 - daysPassed;
+  return {
+    hasDate: true,
+    dateStr,
+    daysPassed,
+    isOverdue: false,
+    overdueDays: 0,
+    label: `✅ ${daysPassed} Hari Lalu`,
+    subtext: `Sisa ${remainingInWeek} hari dalam seminggu`,
+    badgeClass: 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300',
+    dotClass: 'bg-emerald-400',
+  };
+}
 
 interface MicrostockDataViewProps {
   platformAccounts: PlatformAccount[];
@@ -127,7 +275,7 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
   const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [picFilter, setPicFilter] = useState<string>('all');
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'visible' | 'hidden'>('all');
-  const [sortBy, setSortBy] = useState<'default' | 'item-desc' | 'new-desc' | 'reject-desc'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'item-desc' | 'new-desc' | 'reject-desc' | 'overdue-desc' | 'upload-desc' | 'date-desc'>('default');
 
   // Extract all distinct PICs available in microstock accounts
   const availablePics = useMemo(() => {
@@ -145,7 +293,11 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
     microstockAccounts.forEach(account => {
       const existing = microstockItems.find(m => m.platformAccountId === account.id);
       if (existing) {
-        initialRows[account.id] = { ...existing };
+        initialRows[account.id] = {
+          ...existing,
+          lastUploadDate: existing.lastUploadDate || '',
+          jumlahUpload: existing.jumlahUpload !== undefined ? existing.jumlahUpload : 0,
+        };
       } else {
         initialRows[account.id] = {
           id: `ms_${account.id}`,
@@ -154,6 +306,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           newItem: 0,
           reject: 0,
           konsentrasiAkun: account.niche || '',
+          lastUploadDate: '',
+          jumlahUpload: 0,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -175,6 +329,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
         newItem: 0,
         reject: 0,
         konsentrasiAkun: '',
+        lastUploadDate: '',
+        jumlahUpload: 0,
         updatedAt: new Date().toISOString(),
       };
       return {
@@ -246,6 +402,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
     let totalItems = 0;
     let totalNew = 0;
     let totalReject = 0;
+    let totalJumlahUpload = 0;
+    let totalOverdue = 0;
 
     microstockAccounts.forEach(acc => {
       const row = rowStates[acc.id];
@@ -253,6 +411,11 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
         totalItems += Number(row.jumlahItem) || 0;
         totalNew += Number(row.newItem) || 0;
         totalReject += Number(row.reject) || 0;
+        totalJumlahUpload += Number(row.jumlahUpload) || 0;
+        const status = detectMicrostockUploadStatus(row.lastUploadDate);
+        if (status.isOverdue) {
+          totalOverdue += 1;
+        }
       }
     });
 
@@ -266,6 +429,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
       totalItems,
       totalNew,
       totalReject,
+      totalJumlahUpload,
+      totalOverdue,
       acceptRate,
     };
   }, [microstockAccounts, rowStates]);
@@ -361,6 +526,19 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
       if (sortBy === 'reject-desc') {
         return (rowB?.reject || 0) - (rowA?.reject || 0);
       }
+      if (sortBy === 'upload-desc') {
+        return (rowB?.jumlahUpload || 0) - (rowA?.jumlahUpload || 0);
+      }
+      if (sortBy === 'overdue-desc') {
+        const statusA = detectMicrostockUploadStatus(rowA?.lastUploadDate);
+        const statusB = detectMicrostockUploadStatus(rowB?.lastUploadDate);
+        return (statusB.daysPassed || 0) - (statusA.daysPassed || 0);
+      }
+      if (sortBy === 'date-desc') {
+        const dateA = rowA?.lastUploadDate || '';
+        const dateB = rowB?.lastUploadDate || '';
+        return dateB.localeCompare(dateA);
+      }
       return 0;
     });
   }, [microstockAccounts, rowStates, gmailMap, searchQuery, platformFilter, picFilter, visibilityFilter, sortBy, userRole]);
@@ -419,8 +597,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           </div>
         </div>
 
-        {/* Metrics Row - Compact & Crisp */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4 pt-3.5 border-t border-neutral-800/80">
+        {/* Metrics Row - 6 Compact & Crisp Columns */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-4 pt-3.5 border-t border-neutral-800/80">
           <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
             <span className="text-[10px] uppercase font-bold text-neutral-400 block">Total Akun Stock</span>
             <span className="text-lg font-mono font-black text-white mt-0.5 block">{metrics.totalAccounts}</span>
@@ -431,6 +609,15 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
             <span className="text-lg font-mono font-black text-indigo-300 mt-0.5 block flex items-center gap-1">
               <span>{metrics.totalItems.toLocaleString()}</span>
               <span className="text-[10px] font-normal text-indigo-400/80">Item</span>
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Jml Upload Baru</span>
+            <span className="text-lg font-mono font-black text-amber-300 mt-0.5 block flex items-center gap-1">
+              <UploadCloud className="w-3.5 h-3.5 text-amber-400" />
+              <span>{metrics.totalJumlahUpload.toLocaleString()}</span>
+              <span className="text-[10px] font-normal text-amber-400/80">File</span>
             </span>
           </div>
 
@@ -450,11 +637,30 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
             </span>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 block">Acceptance Rate</span>
-            <span className="text-lg font-mono font-black text-emerald-400 mt-0.5 block flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{metrics.acceptRate}%</span>
+          <div className={`p-2.5 rounded-xl border transition-colors ${
+            metrics.totalOverdue > 0 ? 'bg-rose-950/30 border-rose-500/40' : 'bg-neutral-950/70 border-neutral-800'
+          }`}>
+            <span className={`text-[10px] uppercase font-bold block ${
+              metrics.totalOverdue > 0 ? 'text-rose-400' : 'text-neutral-400'
+            }`}>
+              Lewat 1 Minggu
+            </span>
+            <span className={`text-lg font-mono font-black mt-0.5 block flex items-center gap-1.5 ${
+              metrics.totalOverdue > 0 ? 'text-rose-300' : 'text-emerald-400'
+            }`}>
+              {metrics.totalOverdue > 0 ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                  <span>{metrics.totalOverdue}</span>
+                  <span className="text-[10px] font-normal text-rose-300/80">Perlu Upload</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{metrics.acceptRate}%</span>
+                  <span className="text-[10px] font-normal text-emerald-300/80">Accept</span>
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -541,6 +747,9 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
             >
               <option value="default" className="bg-neutral-900 text-white">Default</option>
               <option value="item-desc" className="bg-neutral-900 text-white">Item Terbanyak</option>
+              <option value="upload-desc" className="bg-neutral-900 text-white">Jumlah Upload Terbanyak</option>
+              <option value="overdue-desc" className="bg-neutral-900 text-rose-300">Paling Terlewat (&gt; 1 Minggu)</option>
+              <option value="date-desc" className="bg-neutral-900 text-white">Tanggal Upload Terbaru</option>
               <option value="new-desc" className="bg-neutral-900 text-white">Item Baru Terbanyak</option>
               <option value="reject-desc" className="bg-neutral-900 text-white">Reject Terbanyak</option>
             </select>
@@ -580,12 +789,14 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
             <table className="w-full text-left text-xs text-[#E5E5E5] border-collapse">
               <thead>
                 <tr className="bg-neutral-950/90 border-b border-[#262626] text-neutral-400 font-mono text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4 w-64">Master Gmail</th>
-                  <th className="py-3 px-4 min-w-[200px]">Platform &amp; Akun</th>
-                  <th className="py-3 px-3 w-32 text-center">Jumlah Item</th>
-                  <th className="py-3 px-3 w-28 text-center">New</th>
-                  <th className="py-3 px-3 w-32 text-center">Reject</th>
-                  <th className="py-3 px-4 min-w-[220px]">Konsentrasi Akun</th>
+                  <th className="py-3 px-4 w-56">Master Gmail</th>
+                  <th className="py-3 px-4 min-w-[190px]">Platform &amp; Akun</th>
+                  <th className="py-3 px-2 w-24 text-center">Jumlah Item</th>
+                  <th className="py-3 px-2 w-20 text-center">New</th>
+                  <th className="py-3 px-2 w-20 text-center">Reject</th>
+                  <th className="py-3 px-3 min-w-[170px] text-center">Terakhir Upload</th>
+                  <th className="py-3 px-2 w-24 text-center">Jumlah Upload</th>
+                  <th className="py-3 px-3 min-w-[180px]">Konsentrasi Akun</th>
                   <th className="py-3 px-3 w-28 text-center">Aksi</th>
                 </tr>
               </thead>
@@ -611,6 +822,7 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                   const rejectRate = totalSub > 0 
                     ? Math.round(((Number(row.reject) || 0) / totalSub) * 1000) / 10 
                     : 0;
+                  const uploadStatus = detectMicrostockUploadStatus(row.lastUploadDate);
 
                   return (
                     <tr 
@@ -827,7 +1039,59 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Column 6: Konsentrasi Akun (Text) */}
+                      {/* Column 6: Terakhir Upload (Tanggal & Deteksi Jadwal Seminggu) */}
+                      <td className="py-3.5 px-3 align-top text-center">
+                        <div className="inline-block w-full max-w-[170px]">
+                          <div className="relative">
+                            <input
+                              type="date"
+                              value={row.lastUploadDate || ''}
+                              onChange={(e) => handleFieldChange(platId, 'lastUploadDate', e.target.value)}
+                              className={`w-full px-2 py-1.5 text-xs text-center font-mono font-bold rounded-lg bg-neutral-950 border focus:outline-none transition-all cursor-pointer ${
+                                uploadStatus.isOverdue
+                                  ? 'border-rose-500/70 text-rose-300 ring-1 ring-rose-500/30'
+                                  : uploadStatus.hasDate
+                                  ? 'border-neutral-700 text-neutral-200 focus:border-indigo-500'
+                                  : 'border-[#333] text-neutral-400 focus:border-indigo-500'
+                              }`}
+                              title="Klik untuk memilih tanggal terakhir upload microstock"
+                              id={`ms-date-input-${platId}`}
+                            />
+                          </div>
+
+                          {/* Weekly Schedule Detection Badge */}
+                          <div
+                            className={`mt-1.5 px-2 py-1 rounded-md border text-[10px] font-sans flex flex-col items-center justify-center text-center transition-all ${uploadStatus.badgeClass}`}
+                            title={uploadStatus.subtext}
+                          >
+                            <span className="flex items-center gap-1 font-bold">
+                              <span className={`w-1.5 h-1.5 rounded-full ${uploadStatus.dotClass}`} />
+                              <span>{uploadStatus.label}</span>
+                            </span>
+                            <span className="text-[9px] font-mono opacity-85 mt-0.5 leading-tight">
+                              {uploadStatus.subtext}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Column 7: Jumlah Upload (Angka) */}
+                      <td className="py-3.5 px-2 align-top text-center">
+                        <div className="inline-block">
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.jumlahUpload === undefined || row.jumlahUpload === 0 ? '0' : row.jumlahUpload}
+                            onChange={(e) => handleFieldChange(platId, 'jumlahUpload', parseInt(e.target.value, 10) || 0)}
+                            className="w-20 px-2 py-1.5 text-xs text-center font-mono font-bold rounded-lg bg-neutral-950 border border-[#333] text-amber-300 focus:outline-none focus:border-amber-500"
+                            title="Jumlah item yang diupload pada sesi terakhir"
+                            id={`ms-upload-count-input-${platId}`}
+                          />
+                          <span className="block text-[10px] text-neutral-500 mt-1">item upload</span>
+                        </div>
+                      </td>
+
+                      {/* Column 8: Konsentrasi Akun (Text) */}
                       <td className="py-3.5 px-4 align-top">
                         <input
                           type="text"

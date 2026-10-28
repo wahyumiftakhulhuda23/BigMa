@@ -113,6 +113,8 @@ export interface MicrostockItem {
   newItem: number; // angka
   reject: number; // angka
   konsentrasiAkun: string; // text
+  lastUploadDate?: string; // YYYY-MM-DD
+  jumlahUpload?: number; // angka upload terbaru
   updatedAt: string;
 }
 

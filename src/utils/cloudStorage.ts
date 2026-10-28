@@ -120,6 +120,8 @@ export function sanitizeAppData(data: Partial<AppData>): AppData {
       newItem: Number(m.newItem) || 0,
       reject: Number(m.reject) || 0,
       konsentrasiAkun: m.konsentrasiAkun ?? '',
+      lastUploadDate: m.lastUploadDate ?? '',
+      jumlahUpload: typeof m.jumlahUpload === 'number' ? m.jumlahUpload : (Number(m.jumlahUpload) || 0),
       updatedAt: m.updatedAt || new Date().toISOString(),
     })),
     officeTasks: (data.officeTasks || []).map((o: Partial<OfficeTask>) => ({
