@@ -31,7 +31,13 @@ import {
   Calendar,
   AlertTriangle,
   Clock,
-  UploadCloud
+  UploadCloud,
+  Download,
+  Upload,
+  Lock,
+  Unlock,
+  Link as LinkIcon,
+  Globe
 } from 'lucide-react';
 
 export interface MicrostockScheduleStatus {
@@ -297,6 +303,9 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           ...existing,
           lastUploadDate: existing.lastUploadDate || '',
           jumlahUpload: existing.jumlahUpload !== undefined ? existing.jumlahUpload : 0,
+          uploadUrl: existing.uploadUrl || '',
+          downloadUrl: existing.downloadUrl || '',
+          isDownloadActive: existing.isDownloadActive !== undefined ? existing.isDownloadActive : false,
         };
       } else {
         initialRows[account.id] = {
@@ -308,6 +317,9 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
           konsentrasiAkun: account.niche || '',
           lastUploadDate: '',
           jumlahUpload: 0,
+          uploadUrl: '',
+          downloadUrl: '',
+          isDownloadActive: false,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -331,6 +343,9 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
         konsentrasiAkun: '',
         lastUploadDate: '',
         jumlahUpload: 0,
+        uploadUrl: '',
+        downloadUrl: '',
+        isDownloadActive: false,
         updatedAt: new Date().toISOString(),
       };
       return {
@@ -343,6 +358,22 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
       };
     });
     setSavedRows(prev => ({ ...prev, [platId]: false }));
+  };
+
+  // Toggle download button active status (Admin only)
+  const handleToggleDownloadActive = (platId: string) => {
+    const current = rowStates[platId];
+    const nextVal = !(current?.isDownloadActive);
+    handleFieldChange(platId, 'isDownloadActive', nextVal);
+
+    if (current) {
+      const updatedItem: MicrostockItem = {
+        ...current,
+        isDownloadActive: nextVal,
+        updatedAt: new Date().toISOString(),
+      };
+      onSaveMicrostockItem(updatedItem);
+    }
   };
 
   // Save single row (persisting both microstock item and PIC)
@@ -564,7 +595,7 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                 )}
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Pantau total item, new submissions, reject rate, tema akun, dan penanggung jawab (PIC).
+                Pantau total item, new submissions, reject rate, jadwal upload, link upload &amp; download bahan, dan penanggung jawab (PIC).
               </p>
             </div>
           </div>
@@ -796,6 +827,8 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                   <th className="py-3 px-2 w-20 text-center">Reject</th>
                   <th className="py-3 px-3 min-w-[170px] text-center">Terakhir Upload</th>
                   <th className="py-3 px-2 w-24 text-center">Jumlah Upload</th>
+                  <th className="py-3 px-3 min-w-[155px] text-center">Tombol Upload</th>
+                  <th className="py-3 px-3 min-w-[165px] text-center">Tombol Download</th>
                   <th className="py-3 px-3 min-w-[180px]">Konsentrasi Akun</th>
                   <th className="py-3 px-3 w-28 text-center">Aksi</th>
                 </tr>
@@ -1091,7 +1124,177 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Column 8: Konsentrasi Akun (Text) */}
+                      {/* Column 8: Tombol Upload */}
+                      <td className="py-3.5 px-3 align-top text-center">
+                        <div className="inline-block w-full max-w-[155px]">
+                          {row.uploadUrl && row.uploadUrl.trim() ? (
+                            <a
+                              href={row.uploadUrl.startsWith('http') ? row.uploadUrl : `https://${row.uploadUrl}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-900/30 transition-all hover:scale-[1.02] cursor-pointer"
+                              title={`Buka Link Upload: ${row.uploadUrl}`}
+                              id={`ms-upload-btn-${platId}`}
+                            >
+                              <UploadCloud className="w-3.5 h-3.5" />
+                              <span>Upload</span>
+                              <ExternalLink className="w-3 h-3 opacity-80" />
+                            </a>
+                          ) : (
+                            <button
+                              disabled
+                              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-500 font-medium text-xs cursor-not-allowed"
+                              title={userRole === 'guest' ? 'Link upload belum disediakan oleh Admin' : 'Ketik URL upload di bawah'}
+                              id={`ms-upload-btn-${platId}`}
+                            >
+                              <UploadCloud className="w-3.5 h-3.5" />
+                              <span>Belum Ada Link</span>
+                            </button>
+                          )}
+
+                          {userRole !== 'guest' ? (
+                            <div className="mt-1.5">
+                              <input
+                                type="text"
+                                value={row.uploadUrl || ''}
+                                onChange={(e) => handleFieldChange(platId, 'uploadUrl', e.target.value)}
+                                placeholder="Link URL upload..."
+                                className="w-full px-2 py-1 text-[11px] font-mono rounded bg-neutral-950 border border-neutral-800 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                                title="Admin: Masukkan URL tujuan tombol Upload (misal link Google Drive / portal kontributor)"
+                                id={`ms-upload-url-input-${platId}`}
+                              />
+                            </div>
+                          ) : (
+                            <span className="block text-[10px] text-neutral-500 mt-1 font-mono">
+                              {row.uploadUrl ? 'Link Tersedia' : 'Belum diatur'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Column 9: Tombol Download */}
+                      <td className="py-3.5 px-3 align-top text-center">
+                        <div className="inline-block w-full max-w-[165px]">
+                          {userRole === 'guest' ? (
+                            // Guest Mode View
+                            <>
+                              {row.isDownloadActive && row.downloadUrl && row.downloadUrl.trim() ? (
+                                <a
+                                  href={row.downloadUrl.startsWith('http') ? row.downloadUrl : `https://${row.downloadUrl}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-900/30 transition-all hover:scale-[1.02] cursor-pointer"
+                                  title={`Buka Link Download: ${row.downloadUrl}`}
+                                  id={`ms-download-btn-${platId}`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download</span>
+                                  <ExternalLink className="w-3 h-3 opacity-80" />
+                                </a>
+                              ) : (
+                                <button
+                                  disabled
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-500 font-medium text-xs cursor-not-allowed opacity-75"
+                                  title={
+                                    !row.isDownloadActive
+                                      ? 'Tombol download sedang dinonaktifkan oleh Admin'
+                                      : 'Belum ada file download yang disetel'
+                                  }
+                                  id={`ms-download-btn-${platId}`}
+                                >
+                                  <Lock className="w-3.5 h-3.5 text-neutral-500" />
+                                  <span>Download</span>
+                                </button>
+                              )}
+                              <span className={`block text-[10px] mt-1 font-mono ${
+                                row.isDownloadActive && row.downloadUrl
+                                  ? 'text-emerald-400 font-bold'
+                                  : 'text-neutral-500'
+                              }`}>
+                                {row.isDownloadActive ? (row.downloadUrl ? '● Siap Diunduh' : 'Link Kosong') : '🔒 Terkunci (Nonaktif)'}
+                              </span>
+                            </>
+                          ) : (
+                            // Admin Mode View
+                            <>
+                              <div className="flex items-center gap-1">
+                                {row.downloadUrl && row.downloadUrl.trim() ? (
+                                  <a
+                                    href={row.downloadUrl.startsWith('http') ? row.downloadUrl : `https://${row.downloadUrl}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                      row.isDownloadActive
+                                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/30'
+                                        : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700'
+                                    }`}
+                                    title={`Admin Test Link: ${row.downloadUrl}`}
+                                    id={`ms-download-btn-${platId}`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Download</span>
+                                    <ExternalLink className="w-3 h-3 opacity-80" />
+                                  </a>
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-500 font-medium text-xs cursor-not-allowed"
+                                    title="Isi link download di bawah"
+                                    id={`ms-download-btn-${platId}`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Link Kosong</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Admin Toggle Active / Inactive for Guest */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDownloadActive(platId)}
+                                className={`mt-1.5 w-full py-1 px-2 rounded-md border text-[10px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                  row.isDownloadActive
+                                    ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/50 shadow-sm'
+                                    : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                                }`}
+                                title={
+                                  row.isDownloadActive
+                                    ? 'Status: AKTIF untuk Guest (Klik untuk menonaktifkan)'
+                                    : 'Status: NONAKTIF (Terkunci untuk Guest, klik untuk mengaktifkan)'
+                                }
+                                id={`ms-download-toggle-${platId}`}
+                              >
+                                {row.isDownloadActive ? (
+                                  <>
+                                    <Unlock className="w-3 h-3 text-emerald-400" />
+                                    <span>Guest: Aktif</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock className="w-3 h-3 text-neutral-500" />
+                                    <span>Guest: Terkunci</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Admin URL input */}
+                              <div className="mt-1">
+                                <input
+                                  type="text"
+                                  value={row.downloadUrl || ''}
+                                  onChange={(e) => handleFieldChange(platId, 'downloadUrl', e.target.value)}
+                                  placeholder="Link URL download..."
+                                  className="w-full px-2 py-1 text-[11px] font-mono rounded bg-neutral-950 border border-neutral-800 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                                  title="Admin: Masukkan URL tujuan tombol Download (misal folder Google Drive bahan)"
+                                  id={`ms-download-url-input-${platId}`}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Column 10: Konsentrasi Akun (Text) */}
                       <td className="py-3.5 px-4 align-top">
                         <input
                           type="text"
@@ -1174,7 +1377,7 @@ export const MicrostockDataView: React.FC<MicrostockDataViewProps> = ({
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4 text-indigo-400 shrink-0" />
           <span>
-            Setiap baris yang disimpan akan langsung tersinkronisasi ke Cloud Firestore dan terhubung otomatis dengan Gmail Master &amp; Kelola Akun Platform.
+            Setiap baris yang disimpan akan langsung tersinkronisasi ke Cloud Firestore. Tombol Download dapat diaktifkan/dinonaktifkan oleh Admin kapan saja untuk mengatur akses unduhan di menu Guest.
           </span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-neutral-400 font-mono">

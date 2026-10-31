@@ -122,6 +122,9 @@ export function sanitizeAppData(data: Partial<AppData>): AppData {
       konsentrasiAkun: m.konsentrasiAkun ?? '',
       lastUploadDate: m.lastUploadDate ?? '',
       jumlahUpload: typeof m.jumlahUpload === 'number' ? m.jumlahUpload : (Number(m.jumlahUpload) || 0),
+      uploadUrl: m.uploadUrl ?? '',
+      downloadUrl: m.downloadUrl ?? '',
+      isDownloadActive: m.isDownloadActive !== undefined ? Boolean(m.isDownloadActive) : false,
       updatedAt: m.updatedAt || new Date().toISOString(),
     })),
     officeTasks: (data.officeTasks || []).map((o: Partial<OfficeTask>) => ({

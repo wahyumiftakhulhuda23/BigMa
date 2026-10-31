@@ -115,6 +115,9 @@ export interface MicrostockItem {
   konsentrasiAkun: string; // text
   lastUploadDate?: string; // YYYY-MM-DD
   jumlahUpload?: number; // angka upload terbaru
+  uploadUrl?: string; // hyperlink URL tombol upload
+  downloadUrl?: string; // hyperlink URL tombol download
+  isDownloadActive?: boolean; // status tombol download aktif/nonaktif di menu guest
   updatedAt: string;
 }
 
