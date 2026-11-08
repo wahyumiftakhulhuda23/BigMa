@@ -24,6 +24,9 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface GmailTableProps {
   gmails: GmailAccount[];
   platformAccounts: PlatformAccount[];
@@ -31,6 +34,7 @@ interface GmailTableProps {
   onEditGmail: (gmail: GmailAccount) => void;
   onDeleteGmail: (id: string) => void;
   onManagePlatformForGmail: (gmailId: string) => void;
+  onReorderGmails?: (gmails: GmailAccount[]) => void;
 }
 
 export const GmailTable: React.FC<GmailTableProps> = ({
@@ -40,6 +44,7 @@ export const GmailTable: React.FC<GmailTableProps> = ({
   onEditGmail,
   onDeleteGmail,
   onManagePlatformForGmail,
+  onReorderGmails,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -266,7 +271,7 @@ export const GmailTable: React.FC<GmailTableProps> = ({
           <table className="w-full text-left text-xs border-collapse" id="gmail-master-table">
             <thead>
               <tr className="border-b border-[#262626] bg-neutral-950/50 text-[11px] font-sans font-bold text-neutral-400 uppercase tracking-wider">
-                <th className="py-3 px-3.5 w-12 text-center">No</th>
+                <th className="py-3 px-3 w-16 text-center">{onReorderGmails ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-3.5 min-w-[200px]">Email Gmail</th>
                 <th className="py-3 px-3.5 min-w-[170px]">Password Master</th>
                 <th className="py-3 px-3.5 min-w-[170px]">Kode 2FA / Backup</th>
@@ -292,9 +297,16 @@ export const GmailTable: React.FC<GmailTableProps> = ({
 
                 return (
                   <tr key={gmail.id} className="hover:bg-neutral-900/60 transition-colors" id={`row-gmail-${gmail.id}`}>
-                    {/* No */}
-                    <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                      {index + 1}
+                    {/* Urutan */}
+                    <td className="py-2 px-2 text-center">
+                      <RowOrderControls
+                        readOnly={!onReorderGmails}
+                        indexDisplay={index + 1}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < filteredGmails.length - 1}
+                        onMoveUp={onReorderGmails ? () => onReorderGmails(reorderListWithFilter(gmails, filteredGmails, index, 'up')) : undefined}
+                        onMoveDown={onReorderGmails ? () => onReorderGmails(reorderListWithFilter(gmails, filteredGmails, index, 'down')) : undefined}
+                      />
                     </td>
 
                     {/* Email Gmail */}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AccountNote, PlatformAccount } from '../../types';
+import { AccountNote, PlatformAccount, UserRole } from '../../types';
 import { exportToExcel, exportTableToPdf } from '../../utils/exportUtils';
 import { formatDateIndo, getDeadlineUrgency } from '../../utils/formatters';
 import { ConfirmModal } from '../ConfirmModal';
@@ -27,6 +27,10 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+import { ChevronUp, ChevronDown } from 'lucide-react';
+
 interface AccountNotesViewProps {
   notes: AccountNote[];
   platformAccounts: PlatformAccount[];
@@ -35,6 +39,8 @@ interface AccountNotesViewProps {
   onDeleteNote: (id: string) => void;
   onToggleReminderStatus: (id: string) => void;
   onNavigateCalendar?: (date?: string) => void;
+  onReorderNotes?: (notes: AccountNote[]) => void;
+  userRole?: UserRole;
 }
 
 export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
@@ -45,6 +51,8 @@ export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
   onDeleteNote,
   onToggleReminderStatus,
   onNavigateCalendar,
+  onReorderNotes,
+  userRole,
 }) => {
   const [selectedPlatform, setSelectedPlatform] = useState<string>('All');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('All');
@@ -430,7 +438,7 @@ export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
       {/* 3. Notes Display (Cards Mode) */}
       {viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredNotes.map((note) => {
+          {filteredNotes.map((note, index) => {
             const plat = platformAccounts.find(p => p.id === note.platformAccountId);
             const isReminderActive = note.hasReminder && note.reminderStatus !== 'Selesai';
             const urgency = note.reminderDate ? getDeadlineUrgency(note.reminderDate, note.reminderStatus === 'Selesai' ? 'Selesai' : 'Belum Selesai') : null;
@@ -535,8 +543,33 @@ export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
                     <span className="text-[10px] text-neutral-500 font-mono">Tanpa pengingat</span>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
+                  {/* Reorder and Actions */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Move Up/Down Controls in Card - ONLY ADMIN */}
+                    {userRole !== 'guest' && onReorderNotes && (
+                      <div className="flex items-center gap-0.5 bg-neutral-950/80 border border-neutral-800 rounded-md px-1 py-0.5">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => onReorderNotes?.(reorderListWithFilter(notes, filteredNotes, index, 'up'))}
+                          className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          title="Geser ke Atas"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[10px] font-mono text-neutral-500 px-1 font-bold">#{index + 1}</span>
+                        <button
+                          type="button"
+                          disabled={index === filteredNotes.length - 1}
+                          onClick={() => onReorderNotes?.(reorderListWithFilter(notes, filteredNotes, index, 'down'))}
+                          className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          title="Geser ke Bawah"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => onEditNote(note)}
@@ -597,7 +630,7 @@ export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
-                  <th className="py-3 px-3.5 w-12 text-center">No</th>
+                  <th className="py-3 px-3 w-16 text-center">Urutan</th>
                   <th className="py-3 px-3.5 min-w-[200px]">Judul Catatan</th>
                   <th className="py-3 px-3.5 min-w-[160px]">Platform &amp; Akun</th>
                   <th className="py-3 px-3.5 min-w-[130px]">Kategori</th>
@@ -613,8 +646,15 @@ export const AccountNotesView: React.FC<AccountNotesViewProps> = ({
 
                   return (
                     <tr key={note.id} className="hover:bg-neutral-900/60 transition-colors">
-                      <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                        {index + 1}
+                      <td className="py-2 px-2 text-center">
+                        <RowOrderControls
+                          readOnly={userRole === 'guest' || !onReorderNotes}
+                          indexDisplay={index + 1}
+                          canMoveUp={index > 0}
+                          canMoveDown={index < filteredNotes.length - 1}
+                          onMoveUp={userRole !== 'guest' && onReorderNotes ? () => onReorderNotes(reorderListWithFilter(notes, filteredNotes, index, 'up')) : undefined}
+                          onMoveDown={userRole !== 'guest' && onReorderNotes ? () => onReorderNotes(reorderListWithFilter(notes, filteredNotes, index, 'down')) : undefined}
+                        />
                       </td>
 
                       <td className="py-3 px-3.5 font-semibold text-neutral-100">

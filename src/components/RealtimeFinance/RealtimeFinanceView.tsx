@@ -23,6 +23,9 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface RealtimeFinanceViewProps {
   finances: RealtimeFinance[];
   platformAccounts: PlatformAccount[];
@@ -32,6 +35,7 @@ interface RealtimeFinanceViewProps {
   onEditFinance: (finance: RealtimeFinance) => void;
   onDeleteFinance: (id: string) => void;
   onCashoutToIncome: (finance: RealtimeFinance) => void;
+  onReorderFinances?: (finances: RealtimeFinance[]) => void;
 }
 
 export const RealtimeFinanceView: React.FC<RealtimeFinanceViewProps> = ({
@@ -43,6 +47,7 @@ export const RealtimeFinanceView: React.FC<RealtimeFinanceViewProps> = ({
   onEditFinance,
   onDeleteFinance,
   onCashoutToIncome,
+  onReorderFinances,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Ready' | 'Pending'>('All');
@@ -341,7 +346,7 @@ export const RealtimeFinanceView: React.FC<RealtimeFinanceViewProps> = ({
           <table className="w-full text-left text-xs border-collapse" id="table-realtime-finance">
             <thead>
               <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
-                <th className="py-3 px-3.5 w-12 text-center">No</th>
+                <th className="py-3 px-3 w-16 text-center">{onReorderFinances ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-3.5 min-w-[200px]">Platform &amp; Nama Akun</th>
                 <th className="py-3 px-3.5 min-w-[170px]">Gmail Pengelola</th>
                 <th className="py-3 px-3.5 min-w-[180px]">Saldo Tersedia (Realtime)</th>
@@ -365,9 +370,16 @@ export const RealtimeFinanceView: React.FC<RealtimeFinanceViewProps> = ({
 
                 return (
                   <tr key={fin.id} className="hover:bg-neutral-900/60 transition-colors" id={`row-finance-${fin.id}`}>
-                    {/* No */}
-                    <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                      {index + 1}
+                    {/* Urutan */}
+                    <td className="py-2 px-2 text-center">
+                      <RowOrderControls
+                        readOnly={!onReorderFinances}
+                        indexDisplay={index + 1}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < filteredFinances.length - 1}
+                        onMoveUp={onReorderFinances ? () => onReorderFinances(reorderListWithFilter(finances, filteredFinances, index, 'up')) : undefined}
+                        onMoveDown={onReorderFinances ? () => onReorderFinances(reorderListWithFilter(finances, filteredFinances, index, 'down')) : undefined}
+                      />
                     </td>
 
                     {/* Platform & Account */}

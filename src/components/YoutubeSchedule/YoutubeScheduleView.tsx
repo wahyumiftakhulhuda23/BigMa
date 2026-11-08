@@ -38,6 +38,9 @@ import {
   EyeOff
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface YoutubeScheduleViewProps {
   platformAccounts: PlatformAccount[];
   gmails: GmailAccount[];
@@ -47,6 +50,7 @@ interface YoutubeScheduleViewProps {
   onAddYoutubeAccount?: () => void;
   onEditPlatformAccount?: (account: PlatformAccount) => void;
   onUpdateAccount?: (account: PlatformAccount) => void;
+  onReorderAccounts?: (accounts: PlatformAccount[]) => void;
   userRole?: UserRole;
 }
 
@@ -59,6 +63,7 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
   onAddYoutubeAccount,
   onEditPlatformAccount,
   onUpdateAccount,
+  onReorderAccounts,
   userRole,
 }) => {
   // 1. Filter accounts that belong to YouTube
@@ -580,6 +585,7 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
             <table className="w-full text-left text-xs text-[#E5E5E5] border-collapse">
               <thead>
                 <tr className="bg-neutral-950/90 border-b border-[#262626] text-neutral-400 font-mono text-[11px] uppercase tracking-wider">
+                  <th className="py-3 px-3 w-16 text-center">{userRole === 'guest' ? 'No' : 'Urutan'}</th>
                   <th className="py-3 px-4 w-72">Channel &amp; Master Gmail</th>
                   <th className="py-3 px-4 min-w-[240px]">
                     <div className="flex items-center gap-1.5">
@@ -596,7 +602,7 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#202020]">
-                {filteredAccounts.map((account) => {
+                {filteredAccounts.map((account, index) => {
                   const platId = account.id;
                   const row = rowStates[platId] || {
                     id: `yt_${platId}`,
@@ -620,6 +626,18 @@ export const YoutubeScheduleView: React.FC<YoutubeScheduleViewProps> = ({
                       className={`hover:bg-neutral-900/40 transition-colors ${scheduleStatus.badgeClasses.rowHighlight}`}
                       id={`yt-row-${platId}`}
                     >
+                      {/* Column 0: Urutan */}
+                      <td className="py-3.5 px-2 align-middle text-center">
+                        <RowOrderControls
+                          readOnly={userRole === 'guest' || !onReorderAccounts}
+                          indexDisplay={index + 1}
+                          canMoveUp={index > 0}
+                          canMoveDown={index < filteredAccounts.length - 1}
+                          onMoveUp={userRole !== 'guest' && onReorderAccounts ? () => onReorderAccounts(reorderListWithFilter(platformAccounts, filteredAccounts, index, 'up')) : undefined}
+                          onMoveDown={userRole !== 'guest' && onReorderAccounts ? () => onReorderAccounts(reorderListWithFilter(platformAccounts, filteredAccounts, index, 'down')) : undefined}
+                        />
+                      </td>
+
                       {/* Column 1: Channel Info & Master Gmail */}
                       <td className="py-3.5 px-4 align-top">
                         <div className="space-y-2">

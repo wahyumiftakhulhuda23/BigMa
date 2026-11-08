@@ -23,6 +23,9 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface IncomeDatabaseViewProps {
   incomes: IncomeRecord[];
   platformAccounts: PlatformAccount[];
@@ -30,6 +33,7 @@ interface IncomeDatabaseViewProps {
   onAddIncome: () => void;
   onEditIncome: (income: IncomeRecord) => void;
   onDeleteIncome: (id: string) => void;
+  onReorderIncomes?: (incomes: IncomeRecord[]) => void;
 }
 
 export const IncomeDatabaseView: React.FC<IncomeDatabaseViewProps> = ({
@@ -39,6 +43,7 @@ export const IncomeDatabaseView: React.FC<IncomeDatabaseViewProps> = ({
   onAddIncome,
   onEditIncome,
   onDeleteIncome,
+  onReorderIncomes,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('All');
@@ -504,7 +509,7 @@ export const IncomeDatabaseView: React.FC<IncomeDatabaseViewProps> = ({
           <table className="w-full text-left text-xs border-collapse" id="table-income-database">
             <thead>
               <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
-                <th className="py-3 px-3.5 w-12 text-center">No</th>
+                <th className="py-3 px-3 w-16 text-center">{onReorderIncomes ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-3.5 min-w-[110px]">Tanggal</th>
                 <th className="py-3 px-3.5 min-w-[200px]">Platform &amp; Akun</th>
                 <th className="py-3 px-3.5 min-w-[150px]">Nominal Asli</th>
@@ -521,9 +526,16 @@ export const IncomeDatabaseView: React.FC<IncomeDatabaseViewProps> = ({
 
                 return (
                   <tr key={inc.id} className="hover:bg-neutral-900/60 transition-colors" id={`row-income-${inc.id}`}>
-                    {/* No */}
-                    <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                      {index + 1}
+                    {/* Urutan */}
+                    <td className="py-2 px-2 text-center">
+                      <RowOrderControls
+                        readOnly={!onReorderIncomes}
+                        indexDisplay={index + 1}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < filteredIncomes.length - 1}
+                        onMoveUp={onReorderIncomes ? () => onReorderIncomes(reorderListWithFilter(incomes, filteredIncomes, index, 'up')) : undefined}
+                        onMoveDown={onReorderIncomes ? () => onReorderIncomes(reorderListWithFilter(incomes, filteredIncomes, index, 'down')) : undefined}
+                      />
                     </td>
 
                     {/* Tanggal */}

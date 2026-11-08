@@ -26,6 +26,9 @@ import {
   Tag
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface CalendarViewProps {
   deadlines: ProjectDeadline[];
   accountNotes?: AccountNote[];
@@ -36,6 +39,7 @@ interface CalendarViewProps {
   onToggleStatus: (id: string, newStatus: 'Belum Selesai' | 'Dalam Proses' | 'Selesai') => void;
   onEditNote?: (note: AccountNote) => void;
   onToggleNoteReminderStatus?: (id: string) => void;
+  onReorderDeadlines?: (deadlines: ProjectDeadline[]) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -48,6 +52,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onToggleStatus,
   onEditNote,
   onToggleNoteReminderStatus,
+  onReorderDeadlines,
 }) => {
   const [viewMode, setViewMode] = useState<'calendar' | 'table'>('calendar');
   const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 8, 3)); // Current date Sept 3, 2026
@@ -654,7 +659,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <table className="w-full text-left text-xs border-collapse" id="table-deadlines-schedule">
                 <thead>
                   <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
-                    <th className="py-3 px-3.5 w-12 text-center">No</th>
+                    <th className="py-3 px-3 w-16 text-center">{onReorderDeadlines ? 'Urutan' : 'No'}</th>
                     <th className="py-3 px-3.5 w-32">Kategori Event</th>
                     <th className="py-3 px-3.5 min-w-[200px]">Judul Proyek / Pengingat</th>
                     <th className="py-3 px-3.5 min-w-[160px]">Platform &amp; Akun</th>
@@ -673,8 +678,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                     return (
                       <tr key={`dl-${dl.id}`} className="hover:bg-neutral-900/60 transition-colors" id={`row-deadline-${dl.id}`}>
-                        <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                          {index + 1}
+                        <td className="py-2 px-2 text-center">
+                          <RowOrderControls
+                            readOnly={!onReorderDeadlines}
+                            indexDisplay={index + 1}
+                            canMoveUp={index > 0}
+                            canMoveDown={index < filteredDeadlines.length - 1}
+                            onMoveUp={onReorderDeadlines ? () => onReorderDeadlines(reorderListWithFilter(deadlines, filteredDeadlines, index, 'up')) : undefined}
+                            onMoveDown={onReorderDeadlines ? () => onReorderDeadlines(reorderListWithFilter(deadlines, filteredDeadlines, index, 'down')) : undefined}
+                          />
                         </td>
 
                         <td className="py-3 px-3.5">

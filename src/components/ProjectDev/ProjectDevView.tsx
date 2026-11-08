@@ -25,6 +25,9 @@ import {
 } from 'lucide-react';
 import { getDeadlineUrgency } from '../../utils/formatters';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface ProjectDevViewProps {
   items: DevProjectItem[];
   activeTab?: string;
@@ -32,6 +35,7 @@ interface ProjectDevViewProps {
   onEditItem: (item: DevProjectItem) => void;
   onDeleteItem: (id: string) => void;
   onUpdateItem: (item: DevProjectItem) => void;
+  onReorderItems?: (items: DevProjectItem[]) => void;
 }
 
 export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
@@ -41,6 +45,7 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
   onEditItem,
   onDeleteItem,
   onUpdateItem,
+  onReorderItems,
 }) => {
   const [activeFilter, setActiveFilter] = useState<'Semua' | 'Bug' | 'Ide' | 'Maintenance'>('Semua');
   const [searchTerm, setSearchTerm] = useState('');
@@ -364,6 +369,7 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-neutral-950 border-b border-[#262626] text-neutral-400 uppercase font-mono text-[10px]">
               <tr>
+                <th className="py-3 px-3 w-16 text-center">{onReorderItems ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-4">Tipe &amp; Judul Item</th>
                 <th className="py-3 px-4">Aplikasi &amp; Tech Stack</th>
                 <th className="py-3 px-4">Severity</th>
@@ -375,7 +381,7 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
             <tbody className="divide-y divide-[#262626]/60">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-neutral-500">
+                  <td colSpan={7} className="py-12 text-center text-neutral-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Code2 className="w-8 h-8 text-neutral-700" />
                       <p className="text-xs font-semibold">Belum ada data project dev di kategori ini</p>
@@ -389,7 +395,7 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredItems.map(item => {
+                filteredItems.map((item, index) => {
                   const urgency = item.scheduledDate ? getDeadlineUrgency(item.scheduledDate, item.status) : null;
                   return (
                     <tr
@@ -398,6 +404,17 @@ export const ProjectDevView: React.FC<ProjectDevViewProps> = ({
                         item.status === 'Selesai' ? 'opacity-60 bg-neutral-950/30' : ''
                       }`}
                     >
+                      {/* Urutan */}
+                      <td className="py-2 px-2 text-center">
+                        <RowOrderControls
+                          readOnly={!onReorderItems}
+                          indexDisplay={index + 1}
+                          canMoveUp={index > 0}
+                          canMoveDown={index < filteredItems.length - 1}
+                          onMoveUp={onReorderItems ? () => onReorderItems(reorderListWithFilter(items, filteredItems, index, 'up')) : undefined}
+                          onMoveDown={onReorderItems ? () => onReorderItems(reorderListWithFilter(items, filteredItems, index, 'down')) : undefined}
+                        />
+                      </td>
                       {/* Title & Type */}
                       <td className="py-3 px-4 max-w-sm">
                         <div className="flex items-center gap-2">

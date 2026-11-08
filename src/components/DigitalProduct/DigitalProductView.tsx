@@ -24,6 +24,9 @@ import {
 } from 'lucide-react';
 import { getDeadlineUrgency, formatCurrency } from '../../utils/formatters';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface DigitalProductViewProps {
   products: DigitalProductItem[];
   activeTab?: string;
@@ -31,6 +34,7 @@ interface DigitalProductViewProps {
   onEditProduct: (product: DigitalProductItem) => void;
   onDeleteProduct: (id: string) => void;
   onUpdateProduct: (product: DigitalProductItem) => void;
+  onReorderProducts?: (products: DigitalProductItem[]) => void;
 }
 
 export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
@@ -40,6 +44,7 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
   onEditProduct,
   onDeleteProduct,
   onUpdateProduct,
+  onReorderProducts,
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('Semua');
   const [searchTerm, setSearchTerm] = useState('');
@@ -276,6 +281,7 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-neutral-950 border-b border-[#262626] text-neutral-400 uppercase font-mono text-[10px]">
               <tr>
+                <th className="py-3 px-3 w-16 text-center">{onReorderProducts ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-4">Nama Produk &amp; Ide Konsep</th>
                 <th className="py-3 px-4">Kategori &amp; Platform</th>
                 <th className="py-3 px-4">Estimasi Harga</th>
@@ -287,7 +293,7 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
             <tbody className="divide-y divide-[#262626]/60">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-neutral-500">
+                  <td colSpan={7} className="py-12 text-center text-neutral-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <ShoppingBag className="w-8 h-8 text-neutral-700" />
                       <p className="text-xs font-semibold">Belum ada jadwal produk digital di kategori ini</p>
@@ -301,7 +307,7 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map(p => {
+                filteredProducts.map((p, index) => {
                   const urgency = getDeadlineUrgency(p.releaseDate, p.status === 'Sudah Rilis' ? 'Selesai' : 'Dalam Proses');
                   return (
                     <tr
@@ -310,6 +316,17 @@ export const DigitalProductView: React.FC<DigitalProductViewProps> = ({
                         p.status === 'Sudah Rilis' ? 'opacity-70 bg-neutral-950/30' : ''
                       }`}
                     >
+                      {/* Urutan */}
+                      <td className="py-2 px-2 text-center">
+                        <RowOrderControls
+                          readOnly={!onReorderProducts}
+                          indexDisplay={index + 1}
+                          canMoveUp={index > 0}
+                          canMoveDown={index < filteredProducts.length - 1}
+                          onMoveUp={onReorderProducts ? () => onReorderProducts(reorderListWithFilter(products, filteredProducts, index, 'up')) : undefined}
+                          onMoveDown={onReorderProducts ? () => onReorderProducts(reorderListWithFilter(products, filteredProducts, index, 'down')) : undefined}
+                        />
+                      </td>
                       {/* Title & Concept */}
                       <td className="py-3 px-4 max-w-sm">
                         <div className="font-bold text-white text-xs leading-snug">

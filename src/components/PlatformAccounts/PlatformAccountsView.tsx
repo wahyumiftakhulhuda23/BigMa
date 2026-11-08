@@ -29,6 +29,9 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface PlatformAccountsViewProps {
   platformAccounts: PlatformAccount[];
   gmails: GmailAccount[];
@@ -38,6 +41,7 @@ interface PlatformAccountsViewProps {
   onQuickUpdateFinance: (platformAccountId: string) => void;
   onQuickAddIncome: (platformAccountId: string) => void;
   onUpdateAccount?: (account: PlatformAccount) => void;
+  onReorderAccounts?: (accounts: PlatformAccount[]) => void;
   userRole?: UserRole;
 }
 
@@ -50,6 +54,7 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
   onQuickUpdateFinance,
   onQuickAddIncome,
   onUpdateAccount,
+  onReorderAccounts,
   userRole,
 }) => {
   const [selectedSubMenu, setSelectedSubMenu] = useState<string>('All');
@@ -320,7 +325,7 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
           <table className="w-full text-left text-xs border-collapse" id="table-platform-accounts">
             <thead>
               <tr className="bg-neutral-950/80 text-neutral-400 uppercase tracking-wider text-[10px] font-sans font-bold border-b border-[#262626]">
-                <th className="py-3 px-3.5 w-12 text-center">No</th>
+                <th className="py-3 px-3 w-16 text-center">{userRole === 'guest' ? 'No' : 'Urutan'}</th>
                 <th className="py-3 px-3.5 min-w-[130px]">Platform</th>
                 <th className="py-3 px-3.5 min-w-[200px]">Nama Akun / Channel</th>
                 <th className="py-3 px-3.5 min-w-[180px]">Gmail Basis Operasional</th>
@@ -339,9 +344,16 @@ export const PlatformAccountsView: React.FC<PlatformAccountsViewProps> = ({
 
                 return (
                   <tr key={account.id} className="hover:bg-neutral-900/60 transition-colors" id={`row-platform-${account.id}`}>
-                    {/* No */}
-                    <td className="py-3 px-3.5 text-center font-mono text-neutral-500">
-                      {index + 1}
+                    {/* Urutan */}
+                    <td className="py-2 px-2 text-center">
+                      <RowOrderControls
+                        readOnly={userRole === 'guest' || !onReorderAccounts}
+                        indexDisplay={index + 1}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < filteredAccounts.length - 1}
+                        onMoveUp={userRole !== 'guest' && onReorderAccounts ? () => onReorderAccounts(reorderListWithFilter(platformAccounts, filteredAccounts, index, 'up')) : undefined}
+                        onMoveDown={userRole !== 'guest' && onReorderAccounts ? () => onReorderAccounts(reorderListWithFilter(platformAccounts, filteredAccounts, index, 'down')) : undefined}
+                      />
                     </td>
 
                     {/* Platform */}

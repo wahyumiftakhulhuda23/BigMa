@@ -23,12 +23,16 @@ import {
 } from 'lucide-react';
 import { getDeadlineUrgency } from '../../utils/formatters';
 
+import { RowOrderControls } from '../common/RowOrderControls';
+import { reorderListWithFilter } from '../../utils/reorderUtils';
+
 interface OfficeViewProps {
   tasks: OfficeTask[];
   onAddTask: () => void;
   onEditTask: (task: OfficeTask) => void;
   onDeleteTask: (id: string) => void;
   onUpdateTask: (task: OfficeTask) => void;
+  onReorderTasks?: (tasks: OfficeTask[]) => void;
 }
 
 export const OfficeView: React.FC<OfficeViewProps> = ({
@@ -37,6 +41,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
   onEditTask,
   onDeleteTask,
   onUpdateTask,
+  onReorderTasks,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState<string>('Semua');
@@ -276,6 +281,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-neutral-950 border-b border-[#262626] text-neutral-400 uppercase font-mono text-[10px]">
               <tr>
+                <th className="py-3 px-3 w-16 text-center">{onReorderTasks ? 'Urutan' : 'No'}</th>
                 <th className="py-3 px-4">Pekerjaan &amp; Kategori</th>
                 <th className="py-3 px-4">Divisi &amp; Tim</th>
                 <th className="py-3 px-4">Prioritas</th>
@@ -287,7 +293,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
             <tbody className="divide-y divide-[#262626]/60">
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-neutral-500">
+                  <td colSpan={7} className="py-12 text-center text-neutral-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Building2 className="w-8 h-8 text-neutral-700" />
                       <p className="text-xs font-semibold">Belum ada daftar pekerjaan kantor</p>
@@ -301,7 +307,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((t) => {
+                filteredTasks.map((t, index) => {
                   const urgency = getDeadlineUrgency(t.dueDate, t.status);
                   return (
                     <tr 
@@ -310,6 +316,17 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
                         t.status === 'Selesai' ? 'opacity-60 bg-neutral-950/30' : ''
                       }`}
                     >
+                      {/* Urutan */}
+                      <td className="py-2 px-2 text-center">
+                        <RowOrderControls
+                          readOnly={!onReorderTasks}
+                          indexDisplay={index + 1}
+                          canMoveUp={index > 0}
+                          canMoveDown={index < filteredTasks.length - 1}
+                          onMoveUp={onReorderTasks ? () => onReorderTasks(reorderListWithFilter(tasks, filteredTasks, index, 'up')) : undefined}
+                          onMoveDown={onReorderTasks ? () => onReorderTasks(reorderListWithFilter(tasks, filteredTasks, index, 'down')) : undefined}
+                        />
+                      </td>
                       {/* Title & Category */}
                       <td className="py-3 px-4 max-w-xs">
                         <div className="font-bold text-white text-xs leading-snug">

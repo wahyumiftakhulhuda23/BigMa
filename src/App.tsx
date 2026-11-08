@@ -277,6 +277,11 @@ export default function App() {
     }));
   };
 
+  const handleReorderGmails = (reordered: GmailAccount[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, gmails: reordered }));
+  };
+
   // ==========================================
   // CRUD HANDLERS FOR PLATFORM ACCOUNTS
   // ==========================================
@@ -288,6 +293,11 @@ export default function App() {
         : [account, ...prev.platformAccounts];
       return { ...prev, platformAccounts: newAccounts };
     });
+  };
+
+  const handleReorderPlatformAccounts = (reordered: PlatformAccount[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, platformAccounts: reordered }));
   };
 
   const handleDeletePlatformAccount = (id: string) => {
@@ -329,6 +339,11 @@ export default function App() {
     }));
   };
 
+  const handleReorderNotes = (reordered: AccountNote[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, notes: reordered }));
+  };
+
   // ==========================================
   // CRUD HANDLERS FOR REALTIME FINANCE
   // ==========================================
@@ -359,6 +374,11 @@ export default function App() {
     setIsIncomeModalOpen(true);
   };
 
+  const handleReorderFinances = (reordered: RealtimeFinance[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, realtimeFinances: reordered }));
+  };
+
   // ==========================================
   // CRUD HANDLERS FOR INCOME DATABASE
   // ==========================================
@@ -377,6 +397,11 @@ export default function App() {
       ...prev,
       incomes: prev.incomes.filter(i => i.id !== id),
     }));
+  };
+
+  const handleReorderIncomes = (reordered: IncomeRecord[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, incomes: reordered }));
   };
 
   // ==========================================
@@ -404,6 +429,11 @@ export default function App() {
       ...prev,
       deadlines: prev.deadlines.map(d => (d.id === id ? { ...d, status: newStatus } : d)),
     }));
+  };
+
+  const handleReorderDeadlines = (reordered: ProjectDeadline[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, deadlines: reordered }));
   };
 
   // ==========================================
@@ -474,6 +504,11 @@ export default function App() {
     }));
   };
 
+  const handleReorderOfficeTasks = (reordered: OfficeTask[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, officeTasks: reordered }));
+  };
+
   // Project Dev Handlers
   const handleSaveDevItem = (item: DevProjectItem) => {
     updateAndSyncData(prev => {
@@ -496,6 +531,11 @@ export default function App() {
     }));
   };
 
+  const handleReorderDevProjects = (reordered: DevProjectItem[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, devProjects: reordered }));
+  };
+
   // Digital Product Handlers
   const handleSaveDigitalProduct = (product: DigitalProductItem) => {
     updateAndSyncData(prev => {
@@ -516,6 +556,11 @@ export default function App() {
       ...prev,
       digitalProducts: (prev.digitalProducts || []).filter(p => p.id !== id),
     }));
+  };
+
+  const handleReorderDigitalProducts = (reordered: DigitalProductItem[]) => {
+    if (userRole !== 'admin') return;
+    updateAndSyncData(prev => ({ ...prev, digitalProducts: reordered }));
   };
 
   // Quick Add from Sidebar / Actions
@@ -636,6 +681,7 @@ export default function App() {
                   }}
                   onDeleteTask={handleDeleteOfficeTask}
                   onUpdateTask={handleSaveOfficeTask}
+                  onReorderTasks={userRole === 'admin' ? handleReorderOfficeTasks : undefined}
                 />
               </motion.div>
             )}
@@ -663,6 +709,7 @@ export default function App() {
                   }}
                   onDeleteItem={handleDeleteDevItem}
                   onUpdateItem={handleSaveDevItem}
+                  onReorderItems={userRole === 'admin' ? handleReorderDevProjects : undefined}
                 />
               </motion.div>
             )}
@@ -689,6 +736,7 @@ export default function App() {
                   }}
                   onDeleteProduct={handleDeleteDigitalProduct}
                   onUpdateProduct={handleSaveDigitalProduct}
+                  onReorderProducts={userRole === 'admin' ? handleReorderDigitalProducts : undefined}
                 />
               </motion.div>
             )}
@@ -720,6 +768,7 @@ export default function App() {
                   setPreselectedPlatformName(undefined);
                   setIsPlatformModalOpen(true);
                 }}
+                onReorderGmails={userRole === 'admin' ? handleReorderGmails : undefined}
               />
             </motion.div>
           )}
@@ -761,6 +810,7 @@ export default function App() {
                   setPreselectedFinancePlatformId(platformAccountId);
                   setIsFinanceModalOpen(true);
                 }}
+                onReorderAccounts={userRole === 'admin' ? handleReorderPlatformAccounts : undefined}
               />
             </motion.div>
           )}
@@ -796,6 +846,7 @@ export default function App() {
                 }}
                 onUpdateAccount={handleSavePlatformAccount}
                 userRole={userRole}
+                onReorderAccounts={userRole === 'admin' ? handleReorderPlatformAccounts : undefined}
               />
             </motion.div>
           )}
@@ -831,6 +882,7 @@ export default function App() {
                 }}
                 onUpdateAccount={handleSavePlatformAccount}
                 userRole={userRole}
+                onReorderAccounts={userRole === 'admin' ? handleReorderPlatformAccounts : undefined}
               />
             </motion.div>
           )}
@@ -847,6 +899,7 @@ export default function App() {
               <AccountNotesView
                 notes={appData.notes || []}
                 platformAccounts={appData.platformAccounts}
+                userRole={userRole}
                 onAddNote={() => {
                   setEditingNote(null);
                   setPreselectedNotePlatformId(undefined);
@@ -859,6 +912,7 @@ export default function App() {
                 }}
                 onDeleteNote={handleDeleteNote}
                 onToggleReminderStatus={handleToggleNoteReminderStatus}
+                onReorderNotes={userRole === 'admin' ? handleReorderNotes : undefined}
               />
             </motion.div>
           )}
@@ -889,6 +943,7 @@ export default function App() {
                 }}
                 onDeleteFinance={handleDeleteFinance}
                 onCashoutToIncome={handleCashoutToIncome}
+                onReorderFinances={userRole === 'admin' ? handleReorderFinances : undefined}
               />
             </motion.div>
           )}
@@ -917,6 +972,7 @@ export default function App() {
                   setIsIncomeModalOpen(true);
                 }}
                 onDeleteIncome={handleDeleteIncome}
+                onReorderIncomes={userRole === 'admin' ? handleReorderIncomes : undefined}
               />
             </motion.div>
           )}
@@ -945,6 +1001,7 @@ export default function App() {
                 }}
                 onDeleteDeadline={handleDeleteDeadline}
                 onToggleStatus={handleToggleDeadlineStatus}
+                onReorderDeadlines={userRole === 'admin' ? handleReorderDeadlines : undefined}
               />
             </motion.div>
           )}
